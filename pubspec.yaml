@@ -1,0 +1,28 @@
+name: pelvi_crm
+description: SOAP-first CRM for solo physiotherapists. Local-first Flutter app.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  drift: ^2.26.0
+  drift_flutter: ^0.2.4
+  sqlite3_flutter_libs: ^0.5.28
+  path_provider: ^2.1.5
+  path: ^1.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  drift_dev: ^2.26.0
+  build_runner: ^2.4.15
+
+flutter:
+  uses-material-design: true
