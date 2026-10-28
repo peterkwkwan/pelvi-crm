@@ -157,6 +157,27 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                         _PhoneLink(phone: client.emergencyContactPhone!),
                       ],
                     ],
+                    const SizedBox(height: PelviSpace.lg),
+                    const Divider(height: 1),
+                    const SizedBox(height: PelviSpace.lg),
+                    Text('CLIENT SUMMARY', style: text.labelMedium),
+                    const SizedBox(height: PelviSpace.sm),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(PelviSpace.md),
+                      decoration: BoxDecoration(
+                        color: PelviColors.surface,
+                        borderRadius: BorderRadius.circular(PelviRadius.md),
+                        border: Border.all(color: PelviColors.border),
+                      ),
+                      child: Text(
+                        'TBD — AI summary of past SOAP notes, '
+                        'with emphasis on the latest visit.',
+                        style: text.bodyMedium?.copyWith(
+                          color: PelviColors.inkMuted,
+                        ),
+                      ),
+                    ),
                     if (client.notes != null && client.notes!.isNotEmpty) ...[
                       const SizedBox(height: PelviSpace.lg),
                       const Divider(height: 1),
@@ -175,22 +196,6 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: PelviSpace.lg),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => AppointmentFormScreen(
-                                clientId: client.id,
-                              ),
-                            ),
-                          );
-                        },
-                        child: const Text('New appointment'),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -202,7 +207,25 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                   PelviSpace.md,
                   PelviSpace.sm,
                 ),
-                child: Text('APPOINTMENTS', style: text.labelMedium),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('APPOINTMENTS', style: text.labelMedium),
+                    const SizedBox(height: PelviSpace.sm),
+                    FilledButton(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => AppointmentFormScreen(
+                              clientId: client.id,
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text('New appointment'),
+                    ),
+                  ],
+                ),
               ),
               StreamBuilder<List<Appointment>>(
                 stream: db.watchAppointmentsForClient(clientId),
@@ -212,22 +235,12 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                     return Padding(
                       padding: const EdgeInsets.fromLTRB(
                         PelviSpace.md,
-                        0,
+                        PelviSpace.sm,
                         PelviSpace.md,
                         PelviSpace.lg,
                       ),
-                      child: DashedEmptyWell(
+                      child: const DashedEmptyWell(
                         message: 'No appointments yet for this client.',
-                        ctaLabel: 'Book visit',
-                        onCta: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => AppointmentFormScreen(
-                                clientId: client.id,
-                              ),
-                            ),
-                          );
-                        },
                       ),
                     );
                   }
