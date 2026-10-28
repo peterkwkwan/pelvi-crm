@@ -110,7 +110,10 @@ class _SettingsBlock extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: PelviSpace.md),
-        child: Column(children: children),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        ),
       ),
     );
   }
