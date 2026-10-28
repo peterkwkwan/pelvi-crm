@@ -406,6 +406,84 @@ void main() {
     expect(history, hasLength(2));
   });
 
+  test('recall due uses window; cancelled ignored; notes count as visit', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+    expect(await db.getRecallDays(), 30);
+
+    final now = DateTime(2026, 10, 28, 12);
+    final stale = await db.insertClient(firstName: 'Stale', lastName: 'Client');
+    final fresh = await db.insertClient(firstName: 'Fresh', lastName: 'Client');
+    final never = await db.insertClient(firstName: 'Never', lastName: 'Seen');
+    final cancelledOnly =
+        await db.insertClient(firstName: 'Cancel', lastName: 'Only');
+
+    await db.insertAppointment(
+      clientId: stale,
+      startsAt: now.subtract(const Duration(days: 40)),
+      status: AppointmentStatus.completed,
+    );
+    await db.insertAppointment(
+      clientId: fresh,
+      startsAt: now.subtract(const Duration(days: 5)),
+    );
+    await db.insertAppointment(
+      clientId: cancelledOnly,
+      startsAt: now.subtract(const Duration(days: 2)),
+      status: AppointmentStatus.cancelled,
+    );
+
+    var due = await db.getRecallDueClients(now: now);
+    expect(due.map((e) => e.client.id), containsAll([stale, never, cancelledOnly]));
+    expect(due.map((e) => e.client.id), isNot(contains(fresh)));
+
+    // Note inside window clears due.
+    final appt = await db.insertAppointment(
+      clientId: never,
+      startsAt: now.subtract(const Duration(days: 60)),
+      status: AppointmentStatus.completed,
+    );
+    await db.getOrCreateNoteForAppointment(
+      appointmentId: appt,
+      clientId: never,
+      noteDate: now.subtract(const Duration(days: 3)),
+    );
+    due = await db.getRecallDueClients(now: now);
+    expect(due.map((e) => e.client.id), isNot(contains(never)));
+
+    await db.setRecallDays(7);
+    expect(await db.getRecallDays(), 7);
+    due = await db.getRecallDueClients(now: now);
+    // Fresh at 5 days is still inside a 7-day window.
+    expect(due.map((e) => e.client.id), isNot(contains(fresh)));
+    final weekPlus =
+        await db.insertClient(firstName: 'Week', lastName: 'Plus');
+    await db.insertAppointment(
+      clientId: weekPlus,
+      startsAt: now.subtract(const Duration(days: 10)),
+      status: AppointmentStatus.completed,
+    );
+    due = await db.getRecallDueClients(now: now);
+    expect(due.map((e) => e.client.id), contains(weekPlus));
+
+    expect(
+      computeRecallDue(
+        clients: await db.watchClients().first,
+        appointments: [],
+        notes: [],
+        recallDays: 30,
+        now: now,
+      ).length,
+      5,
+    );
+    expect(formatLastSeenCaption(null, now), 'Never seen');
+    expect(
+      formatLastSeenCaption(now.subtract(const Duration(days: 12)), now),
+      'Last seen 12 days ago',
+    );
+  });
+
   test('client search matches name phone email; recent order + cap', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
@@ -469,6 +547,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('Search name, phone, or email'), findsOneWidget);
+    expect(find.text('All'), findsOneWidget);
+    expect(find.textContaining('Due'), findsOneWidget);
     expect(find.text('RECENT'), findsOneWidget);
     expect(find.text('Ada Lovelace'), findsWidgets);
 

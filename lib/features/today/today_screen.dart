@@ -6,6 +6,7 @@ import '../../theme/theme.dart';
 import '../../widgets/empty_state.dart';
 import '../appointments/appointment_agenda_row.dart';
 import '../appointments/appointment_form_screen.dart';
+import '../notifications/notifications_sheet.dart';
 
 class TodayScreen extends StatelessWidget {
   const TodayScreen({super.key});
@@ -27,22 +28,15 @@ class TodayScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Today'),
         actions: [
-          IconButton(
-            tooltip: 'Notifications',
-            onPressed: () {},
-            icon: Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(
-                color: PelviColors.surfaceMuted,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.notifications_none_outlined,
-                size: 20,
-                color: PelviColors.inkMuted,
-              ),
-            ),
+          StreamBuilder<List<RecallDueEntry>>(
+            stream: db.watchRecallDueClients(),
+            builder: (context, snap) {
+              final count = snap.data?.length ?? 0;
+              return NotificationBellButton(
+                dueCount: count,
+                onPressed: () => showNotificationsSheet(context),
+              );
+            },
           ),
           const SizedBox(width: PelviSpace.sm),
         ],

@@ -2,10 +2,30 @@ import 'package:flutter/material.dart';
 
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
+import '../../widgets/picker_sheet.dart';
 import '../placeholders/stub_screens.dart';
+
+const _recallDayChoices = <int>[14, 21, 30, 45, 60, 90];
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
+
+  Future<void> _editRecallWindow(BuildContext context) async {
+    final db = AppDatabaseProvider.of(context);
+    final current = await db.getRecallDays();
+    if (!context.mounted) return;
+    final picked = await showPelviPickerSheet<int>(
+      context: context,
+      title: 'Recall window',
+      selected: current,
+      options: [
+        for (final d in _recallDayChoices)
+          PelviPickerOption(value: d, label: '$d days'),
+      ],
+    );
+    if (picked == null) return;
+    await db.setRecallDays(picked);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,12 +47,14 @@ class MoreScreen extends StatelessWidget {
                     value: (name == null || name.isEmpty) ? 'Not set' : name,
                   ),
                   const Divider(height: 1),
-                  FutureBuilder<int>(
-                    future: db.getRecallDays(),
+                  StreamBuilder<int>(
+                    stream: db.watchRecallDays(),
                     builder: (context, recallSnap) {
-                      return _SettingsField(
-                        label: 'RECALL WINDOW',
-                        value: '${recallSnap.data ?? 30} days',
+                      final days = recallSnap.data ?? 30;
+                      return _TappableRow(
+                        title: 'Recall window',
+                        subtitle: '$days days · clients with no visit in window',
+                        onTap: () => _editRecallWindow(context),
                       );
                     },
                   ),

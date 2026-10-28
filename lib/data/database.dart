@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
 import 'appointment_overlap.dart';
+import 'recall.dart';
+
+export 'recall.dart';
 
 part 'database.g.dart';
 
@@ -143,6 +148,97 @@ class AppDatabase extends _$AppDatabase {
   Future<int> getRecallDays() async {
     final raw = await getSetting(recallDaysKey);
     return int.tryParse(raw ?? defaultRecallDays) ?? 30;
+  }
+
+  Future<void> setRecallDays(int days) async {
+    final clamped = days < 1 ? 1 : days;
+    await setSetting(recallDaysKey, '$clamped');
+  }
+
+  Stream<int>? _recallDaysStream;
+
+  Stream<int> watchRecallDays() {
+    return _recallDaysStream ??= (select(settings)
+          ..where((t) => t.key.equals(recallDaysKey)))
+        .watch()
+        .map((rows) {
+          final raw = rows.isEmpty ? null : rows.first.value;
+          return int.tryParse(raw ?? defaultRecallDays) ?? 30;
+        })
+        .asBroadcastStream();
+  }
+
+  Stream<List<RecallDueEntry>>? _recallDueStream;
+  final _recallDueSubs = <StreamSubscription<Object?>>[];
+
+  /// Clients with no non-cancelled appointment/note inside the recall window.
+  ///
+  /// Cached broadcast stream so StreamBuilders don't resubscribe every rebuild.
+  Stream<List<RecallDueEntry>> watchRecallDueClients() {
+    if (_recallDueStream != null) return _recallDueStream!;
+    final controller = StreamController<List<RecallDueEntry>>.broadcast();
+    var emitting = false;
+    var queued = false;
+
+    Future<void> emit() async {
+      if (emitting) {
+        queued = true;
+        return;
+      }
+      emitting = true;
+      do {
+        queued = false;
+        try {
+          final due = await getRecallDueClients();
+          if (!controller.isClosed) controller.add(due);
+        } catch (e, st) {
+          if (!controller.isClosed) controller.addError(e, st);
+        }
+      } while (queued);
+      emitting = false;
+    }
+
+    void ping() => emit();
+    _recallDueSubs.addAll([
+      select(clients).watch().listen((_) => ping()),
+      select(appointments).watch().listen((_) => ping()),
+      select(notes).watch().listen((_) => ping()),
+      (select(settings)..where((t) => t.key.equals(recallDaysKey)))
+          .watch()
+          .listen((_) => ping()),
+    ]);
+    _recallDueStream = controller.stream;
+    return _recallDueStream!;
+  }
+
+  Future<List<RecallDueEntry>> getRecallDueClients({DateTime? now}) async {
+    final clientsList = await (select(clients)
+          ..orderBy([
+            (t) => OrderingTerm.asc(t.lastName),
+            (t) => OrderingTerm.asc(t.firstName),
+          ]))
+        .get();
+    final appts = await select(appointments).get();
+    final notesList = await select(notes).get();
+    final days = await getRecallDays();
+    return computeRecallDue(
+      clients: clientsList,
+      appointments: appts,
+      notes: notesList,
+      recallDays: days,
+      now: now ?? DateTime.now(),
+    );
+  }
+
+  @override
+  Future<void> close() async {
+    for (final s in _recallDueSubs) {
+      await s.cancel();
+    }
+    _recallDueSubs.clear();
+    _recallDueStream = null;
+    _recallDaysStream = null;
+    await super.close();
   }
 
   Future<int> getDefaultAppointmentMinutes() async {

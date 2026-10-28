@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'app.dart';
 import 'data/database.dart';
+import 'data/local_notifications.dart';
 import 'theme/colors.dart';
 
 Future<void> main() async {
@@ -19,6 +20,7 @@ Future<void> main() async {
 
   final database = AppDatabase();
   await database.ensureDefaults();
+  await LocalNotifications.init();
 
   runApp(PelviApp(database: database));
 }

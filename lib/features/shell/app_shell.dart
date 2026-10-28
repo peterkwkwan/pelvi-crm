@@ -1,5 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../data/database.dart';
+import '../../data/database_provider.dart';
+import '../../data/local_notifications.dart';
 import '../../theme/theme.dart';
 import '../calendar/calendar_screen.dart';
 import '../clients/clients_screen.dart';
@@ -17,6 +22,7 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
+  StreamSubscription<List<RecallDueEntry>>? _recallSub;
 
   static const _pages = <Widget>[
     TodayScreen(),
@@ -24,6 +30,27 @@ class _AppShellState extends State<AppShell> {
     ClientsScreen(),
     MoreScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bindRecallPush());
+  }
+
+  void _bindRecallPush() {
+    if (!mounted) return;
+    final db = AppDatabaseProvider.of(context);
+    _recallSub?.cancel();
+    _recallSub = db.watchRecallDueClients().listen((due) {
+      LocalNotifications.syncRecallDueCount(due.length);
+    });
+  }
+
+  @override
+  void dispose() {
+    _recallSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
