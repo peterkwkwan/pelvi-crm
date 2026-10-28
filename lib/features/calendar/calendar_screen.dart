@@ -14,7 +14,18 @@ class CalendarScreen extends StatelessWidget {
       emptyBody:
           'Month grid with patient counts and day lists will land after clients & appointments.',
       trailingWell: DashedEmptyWell(
-        message: 'Tap + to book an appointment once the calendar is live.',
+        message: 'No appointments on the calendar yet.',
+        ctaLabel: 'Add appointment',
+        onCta: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const StubScreen(
+                title: 'New appointment',
+                body: 'Appointment create form comes in the next slice.',
+              ),
+            ),
+          );
+        },
       ),
     );
   }
