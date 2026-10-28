@@ -89,7 +89,18 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(PelviSpace.md),
           children: [
-            Text('FIRST NAME', style: text.labelMedium),
+            Text.rich(
+              TextSpan(
+                style: text.labelMedium,
+                children: const [
+                  TextSpan(text: 'FIRST NAME'),
+                  TextSpan(
+                    text: ' *',
+                    style: TextStyle(color: PelviColors.pink700),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: PelviSpace.xs),
             TextFormField(
               controller: _firstName,
@@ -102,7 +113,18 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
               },
             ),
             const SizedBox(height: PelviSpace.md),
-            Text('LAST NAME', style: text.labelMedium),
+            Text.rich(
+              TextSpan(
+                style: text.labelMedium,
+                children: const [
+                  TextSpan(text: 'LAST NAME'),
+                  TextSpan(
+                    text: ' *',
+                    style: TextStyle(color: PelviColors.pink700),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: PelviSpace.xs),
             TextFormField(
               controller: _lastName,
