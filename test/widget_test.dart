@@ -13,12 +13,13 @@ import 'package:pelvi_crm/features/notes/note_format.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('formatNoteDate is weekday – day – year', () {
+  test('formatNoteDate is EEE, d MMM yyyy', () {
     expect(
       formatNoteDate(DateTime(2026, 10, 28)),
-      'Wednesday – 28 – 2026',
+      'Wed, 28 Oct 2026',
     );
   });
+
 
   test('nextWholeHour rounds past the hour, keeps exact hour', () {
     expect(
