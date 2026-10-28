@@ -5,7 +5,6 @@ import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/empty_state.dart';
 import '../appointments/appointment_form_screen.dart';
-import '../notes/note_editor_screen.dart';
 import '../notes/note_format.dart';
 import '../notes/open_note.dart';
 import 'client_form_screen.dart';
@@ -136,46 +135,6 @@ class ClientProfileScreen extends StatelessWidget {
                   PelviSpace.md,
                   PelviSpace.sm,
                 ),
-                child: Text('VISIT HISTORY', style: text.labelMedium),
-              ),
-              StreamBuilder<List<Note>>(
-                stream: db.watchNotesForClient(clientId),
-                builder: (context, noteSnap) {
-                  final notes = noteSnap.data ?? const <Note>[];
-                  if (notes.isEmpty) {
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        PelviSpace.md,
-                        0,
-                        PelviSpace.md,
-                        PelviSpace.md,
-                      ),
-                      child: Text(
-                        'No SOAP notes yet. Open a note from an appointment below.',
-                        style: text.bodyMedium?.copyWith(
-                          color: PelviColors.inkMuted,
-                        ),
-                      ),
-                    );
-                  }
-                  return Column(
-                    children: [
-                      for (var i = 0; i < notes.length; i++) ...[
-                        if (i > 0) const Divider(height: 1),
-                        _NoteHistoryRow(note: notes[i]),
-                      ],
-                    ],
-                  );
-                },
-              ),
-              const Divider(height: 1),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  PelviSpace.md,
-                  PelviSpace.md,
-                  PelviSpace.md,
-                  PelviSpace.sm,
-                ),
                 child: Text('APPOINTMENTS', style: text.labelMedium),
               ),
               StreamBuilder<List<Appointment>>(
@@ -222,57 +181,6 @@ class ClientProfileScreen extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _NoteHistoryRow extends StatelessWidget {
-  const _NoteHistoryRow({required this.note});
-
-  final Note note;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => NoteEditorScreen(noteId: note.id),
-          ),
-        );
-      },
-      splashColor: PelviColors.surfaceMuted,
-      highlightColor: PelviColors.surfaceMuted,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: PelviSpace.md,
-          vertical: PelviSpace.sm + 4,
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 56),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      formatNoteDate(note.noteDate),
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right,
-                color: PelviColors.inkMuted,
-                size: 20,
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
