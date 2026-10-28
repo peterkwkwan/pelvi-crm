@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/theme.dart';
+import '../appointments/appointment_form_screen.dart';
+import '../clients/client_form_screen.dart';
 import '../placeholders/stub_screens.dart';
 
 /// FAB quick-add sheet: Client / Appointment / Note.
@@ -19,12 +21,10 @@ Future<void> showQuickAddSheet(BuildContext context) {
 class QuickAddSheet extends StatelessWidget {
   const QuickAddSheet({super.key});
 
-  void _openStub(BuildContext context, String title, String body) {
+  void _open(BuildContext context, Widget screen) {
     Navigator.of(context).pop();
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => StubScreen(title: title, body: body),
-      ),
+      MaterialPageRoute<void>(builder: (_) => screen),
     );
   }
 
@@ -70,32 +70,26 @@ class QuickAddSheet extends StatelessWidget {
               icon: Icons.person_add_outlined,
               title: 'Client',
               subtitle: 'Add a new patient profile',
-              onTap: () => _openStub(
-                context,
-                'New client',
-                'Client create form comes in the next slice.',
-              ),
+              onTap: () => _open(context, const ClientFormScreen()),
             ),
             const Divider(height: 1),
             _QuickAddRow(
               icon: Icons.event_outlined,
               title: 'Appointment',
               subtitle: 'Book a visit on the calendar',
-              onTap: () => _openStub(
-                context,
-                'New appointment',
-                'Appointment create form comes in the next slice.',
-              ),
+              onTap: () => _open(context, const AppointmentFormScreen()),
             ),
             const Divider(height: 1),
             _QuickAddRow(
               icon: Icons.notes_outlined,
               title: 'Note',
               subtitle: 'Start a SOAP draft',
-              onTap: () => _openStub(
+              onTap: () => _open(
                 context,
-                'New note',
-                'SOAP editor comes after clients & appointments.',
+                const StubScreen(
+                  title: 'New note',
+                  body: 'SOAP editor comes after clients & appointments.',
+                ),
               ),
             ),
           ],

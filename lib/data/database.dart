@@ -112,4 +112,115 @@ class AppDatabase extends _$AppDatabase {
       await setSetting(recallDaysKey, defaultRecallDays);
     }
   }
+
+  Stream<List<Client>> watchClients() {
+    return (select(clients)
+          ..orderBy([
+            (t) => OrderingTerm.asc(t.lastName),
+            (t) => OrderingTerm.asc(t.firstName),
+          ]))
+        .watch();
+  }
+
+  Future<Client?> getClient(int id) {
+    return (select(clients)..where((t) => t.id.equals(id))).getSingleOrNull();
+  }
+
+  Stream<Client?> watchClient(int id) {
+    return (select(clients)..where((t) => t.id.equals(id)))
+        .watch()
+        .map((rows) => rows.isEmpty ? null : rows.first);
+  }
+
+  Future<int> insertClient({
+    required String firstName,
+    required String lastName,
+    String? phone,
+    String? email,
+    String? emergencyContact,
+  }) {
+    return into(clients).insert(
+      ClientsCompanion.insert(
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phone: Value(_blankToNull(phone)),
+        email: Value(_blankToNull(email)),
+        emergencyContact: Value(_blankToNull(emergencyContact)),
+      ),
+    );
+  }
+
+  Future<bool> updateClient({
+    required int id,
+    required String firstName,
+    required String lastName,
+    String? phone,
+    String? email,
+    String? emergencyContact,
+  }) async {
+    final n = await (update(clients)..where((t) => t.id.equals(id))).write(
+      ClientsCompanion(
+        firstName: Value(firstName.trim()),
+        lastName: Value(lastName.trim()),
+        phone: Value(_blankToNull(phone)),
+        email: Value(_blankToNull(email)),
+        emergencyContact: Value(_blankToNull(emergencyContact)),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+    return n > 0;
+  }
+
+  Stream<List<Appointment>> watchAppointmentsForClient(int clientId) {
+    return (select(appointments)
+          ..where((t) => t.clientId.equals(clientId))
+          ..orderBy([(t) => OrderingTerm.desc(t.startsAt)]))
+        .watch();
+  }
+
+  /// Appointments whose [Appointments.startsAt] falls on [day] (local date).
+  Stream<List<({Appointment appointment, Client client})>>
+      watchAppointmentsWithClientOnDay(DateTime day) {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    final query = select(appointments).join([
+      innerJoin(clients, clients.id.equalsExp(appointments.clientId)),
+    ])
+      ..where(
+        appointments.startsAt.isBiggerOrEqualValue(start) &
+            appointments.startsAt.isSmallerThanValue(end),
+      )
+      ..orderBy([OrderingTerm.asc(appointments.startsAt)]);
+    return query.watch().map(
+          (rows) => [
+            for (final row in rows)
+              (
+                appointment: row.readTable(appointments),
+                client: row.readTable(clients),
+              ),
+          ],
+        );
+  }
+
+  Future<int> insertAppointment({
+    required int clientId,
+    required DateTime startsAt,
+    DateTime? endsAt,
+    AppointmentStatus status = AppointmentStatus.scheduled,
+  }) {
+    return into(appointments).insert(
+      AppointmentsCompanion.insert(
+        clientId: clientId,
+        startsAt: startsAt,
+        endsAt: Value(endsAt),
+        status: Value(status),
+      ),
+    );
+  }
+
+  static String? _blankToNull(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return trimmed;
+  }
 }
