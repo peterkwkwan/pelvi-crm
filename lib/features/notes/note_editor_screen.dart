@@ -1,13 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
 import '../clients/client_format.dart';
+import 'dictation_apply_sheet.dart';
 import 'note_format.dart';
+import 'soap_dictation.dart';
 
 /// Always-editable SOAP note editor with autosave.
 class NoteEditorScreen extends StatefulWidget {
@@ -24,6 +27,14 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   final _objective = TextEditingController();
   final _assessment = TextEditingController();
   final _plan = TextEditingController();
+
+  // shortcut: OS STT streams text only (no local audio file to delete)
+  final SpeechToText _speech = SpeechToText();
+  bool _speechReady = false;
+  bool _listening = false;
+  bool _finishingDictation = false;
+  String _liveWords = '';
+  SoapSection _lastSection = SoapSection.subjective;
 
   Note? _note;
   Client? _client;
@@ -45,6 +56,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   @override
   void dispose() {
     _saveDebounce?.cancel();
+    if (_speechReady) unawaited(_speech.cancel());
     _subjective.dispose();
     _objective.dispose();
     _assessment.dispose();
@@ -124,7 +136,93 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     showPelviSnackBar(context, 'Copied last note.');
   }
 
+  TextEditingController _controllerFor(SoapSection section) => switch (section) {
+        SoapSection.subjective => _subjective,
+        SoapSection.objective => _objective,
+        SoapSection.assessment => _assessment,
+        SoapSection.plan => _plan,
+      };
+
+  Future<bool> _ensureSpeech() async {
+    if (_speechReady) return true;
+    final ok = await _speech.initialize(
+      onStatus: _onSpeechStatus,
+      onError: (e) {
+        if (!mounted) return;
+        showPelviSnackBar(context, 'Dictation error: ${e.errorMsg}');
+      },
+    );
+    if (!mounted) return false;
+    _speechReady = ok;
+    if (!ok) {
+      showPelviSnackBar(
+        context,
+        'Speech recognition unavailable. Check mic permission.',
+      );
+    }
+    return ok;
+  }
+
+  void _onSpeechStatus(String status) {
+    if (!mounted || !_listening) return;
+    if (status == SpeechToText.doneStatus ||
+        status == SpeechToText.notListeningStatus) {
+      unawaited(_finishDictation());
+    }
+  }
+
+  Future<void> _toggleMic() async {
+    if (_listening) {
+      await _finishDictation();
+      return;
+    }
+    if (!await _ensureSpeech()) return;
+    _liveWords = '';
+    setState(() => _listening = true);
+    await _speech.listen(
+      onResult: (r) {
+        if (!mounted) return;
+        setState(() => _liveWords = r.recognizedWords);
+      },
+      listenOptions: SpeechListenOptions(
+        listenMode: ListenMode.dictation,
+        partialResults: true,
+        cancelOnError: true,
+      ),
+    );
+  }
+
+  Future<void> _finishDictation() async {
+    if (_finishingDictation) return;
+    _finishingDictation = true;
+    try {
+      if (_speech.isListening) await _speech.stop();
+      if (!mounted) return;
+      setState(() => _listening = false);
+      final text = _liveWords.trim();
+      _liveWords = '';
+      if (text.isEmpty) {
+        showPelviSnackBar(context, 'Nothing heard. Try again.');
+        return;
+      }
+      final result = await showDictationApplySheet(
+        context: context,
+        initialText: text,
+        initialSection: _lastSection,
+      );
+      if (!mounted || result == null) return;
+      final c = _controllerFor(result.section);
+      c.text = appendSoapTranscript(c.text, result.text);
+      _lastSection = result.section;
+      _scheduleSave();
+      showPelviSnackBar(context, 'Appended to ${result.section.label}.');
+    } finally {
+      _finishingDictation = false;
+    }
+  }
+
   Future<bool> _onWillPop() async {
+    if (_listening) await _speech.cancel();
     _saveDebounce?.cancel();
     await _save();
     return true;
@@ -176,6 +274,13 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                   ),
                 ),
               ),
+            Padding(
+              padding: const EdgeInsets.only(right: PelviSpace.sm),
+              child: _DictationMicButton(
+                listening: _listening,
+                onPressed: _toggleMic,
+              ),
+            ),
           ],
         ),
         body: ListView(
@@ -185,6 +290,13 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               when,
               style: text.bodyMedium?.copyWith(color: PelviColors.inkMuted),
             ),
+            if (_listening) ...[
+              const SizedBox(height: PelviSpace.sm),
+              Text(
+                _liveWords.isEmpty ? 'Listening… tap mic to stop' : _liveWords,
+                style: text.bodyMedium?.copyWith(color: PelviColors.pink700),
+              ),
+            ],
             const SizedBox(height: PelviSpace.sm),
             Align(
               alignment: Alignment.centerLeft,
@@ -235,6 +347,42 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             ),
             const SizedBox(height: PelviSpace.xxl),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DictationMicButton extends StatelessWidget {
+  const _DictationMicButton({
+    required this.listening,
+    required this.onPressed,
+  });
+
+  final bool listening;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: listening ? 'Stop dictation' : 'Dictate',
+      child: Material(
+        color: listening ? PelviColors.pink950 : PelviColors.pink700,
+        shape: const CircleBorder(
+          side: BorderSide(color: Colors.white, width: 2),
+        ),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(
+              listening ? Icons.stop_rounded : Icons.mic_none_rounded,
+              color: PelviColors.inkInverse,
+              size: 22,
+            ),
+          ),
         ),
       ),
     );

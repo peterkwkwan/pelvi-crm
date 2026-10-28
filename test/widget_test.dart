@@ -9,6 +9,7 @@ import 'package:pelvi_crm/data/sync_stub.dart';
 import 'package:pelvi_crm/features/appointments/appointment_form_screen.dart';
 import 'package:pelvi_crm/features/notes/note_editor_screen.dart';
 import 'package:pelvi_crm/features/notes/note_format.dart';
+import 'package:pelvi_crm/features/notes/soap_dictation.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -18,6 +19,12 @@ void main() {
       formatNoteDate(DateTime(2026, 10, 28)),
       'Wed, 28 Oct 2026',
     );
+  });
+
+  test('appendSoapTranscript joins with newline', () {
+    expect(appendSoapTranscript('', '  pain on stairs  '), 'pain on stairs');
+    expect(appendSoapTranscript('Sx: LBP', 'worse AM'), 'Sx: LBP\nworse AM');
+    expect(appendSoapTranscript('keep', '  '), 'keep');
   });
 
 
@@ -303,5 +310,6 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('Peter Kwan'), findsOneWidget);
     expect(find.text('Copy last note'), findsOneWidget);
+    expect(find.byTooltip('Dictate'), findsOneWidget);
   });
 }
