@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pelvi_crm/app.dart';
 import 'package:pelvi_crm/data/database.dart';
+import 'package:pelvi_crm/data/database_provider.dart';
+import 'package:pelvi_crm/data/sync_stub.dart';
 import 'package:pelvi_crm/features/appointments/appointment_form_screen.dart';
+import 'package:pelvi_crm/features/notes/note_editor_screen.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -150,5 +153,40 @@ void main() {
 
     final history = await db.watchNotesForClient(clientId).first;
     expect(history, hasLength(2));
+  });
+
+  testWidgets('note editor leaves loading after open', (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final clientId = await db.insertClient(
+      firstName: 'Peter',
+      lastName: 'Kwan',
+    );
+    final apptId = await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 10, 28, 13, 50),
+    );
+    final note = await db.getOrCreateNoteForAppointment(
+      appointmentId: apptId,
+      clientId: clientId,
+      noteDate: DateTime(2026, 10, 28, 13, 50),
+    );
+
+    await tester.pumpWidget(
+      AppDatabaseProvider(
+        database: db,
+        syncEngine: const StubSyncEngine(),
+        child: MaterialApp(
+          home: NoteEditorScreen(noteId: note.id),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Peter Kwan'), findsOneWidget);
+    expect(find.text('Copy last note'), findsOneWidget);
   });
 }
