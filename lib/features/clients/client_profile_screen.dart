@@ -95,116 +95,72 @@ class ClientProfileScreen extends StatelessWidget {
           body: ListView(
             children: [
               Padding(
-                padding: const EdgeInsets.all(PelviSpace.md),
+                padding: const EdgeInsets.fromLTRB(
+                  PelviSpace.md,
+                  PelviSpace.lg,
+                  PelviSpace.md,
+                  PelviSpace.md,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(name, style: text.headlineMedium),
-                    if (client.phone != null && client.phone!.isNotEmpty) ...[
-                      const SizedBox(height: PelviSpace.xs),
-                      InkWell(
-                        onTap: () => _onPhoneTap(context, client.phone!),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.phone_outlined,
-                              size: 18,
-                              color: PelviColors.inkMuted,
-                            ),
-                            const SizedBox(width: PelviSpace.sm),
-                            Expanded(
-                              child: Text(
-                                client.phone!,
-                                style: text.bodyMedium?.copyWith(
-                                  color: PelviColors.inkMuted,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    if (client.email != null && client.email!.isNotEmpty) ...[
-                      const SizedBox(height: PelviSpace.xs),
-                      InkWell(
-                        onTap: () => _launchExternal(
-                          Uri(scheme: 'mailto', path: client.email!),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.email_outlined,
-                              size: 18,
-                              color: PelviColors.inkMuted,
-                            ),
-                            const SizedBox(width: PelviSpace.sm),
-                            Expanded(
-                              child: Text(
-                                client.email!,
-                                style: text.bodyMedium?.copyWith(
-                                  color: PelviColors.inkMuted,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    if ((client.phone != null && client.phone!.isNotEmpty) ||
+                        (client.email != null &&
+                            client.email!.isNotEmpty)) ...[
+                      const SizedBox(height: PelviSpace.md),
+                      if (client.phone != null &&
+                          client.phone!.isNotEmpty)
+                        _PhoneLink(phone: client.phone!),
+                      if (client.email != null &&
+                          client.email!.isNotEmpty) ...[
+                        if (client.phone != null &&
+                            client.phone!.isNotEmpty)
+                          const SizedBox(height: PelviSpace.sm),
+                        _EmailLink(email: client.email!),
+                      ],
                     ],
                     if ((client.emergencyContact != null &&
                             client.emergencyContact!.isNotEmpty) ||
                         (client.emergencyContactPhone != null &&
                             client.emergencyContactPhone!.isNotEmpty)) ...[
-                      const SizedBox(height: PelviSpace.sm),
+                      const SizedBox(height: PelviSpace.lg),
+                      const Divider(height: 1),
+                      const SizedBox(height: PelviSpace.lg),
                       Text('EMERGENCY', style: text.labelMedium),
                       if (client.emergencyContact != null &&
                           client.emergencyContact!.isNotEmpty) ...[
-                        const SizedBox(height: PelviSpace.xs),
-                        Text(client.emergencyContact!, style: text.bodyMedium),
+                        const SizedBox(height: PelviSpace.sm),
+                        Text(
+                          client.emergencyContact!,
+                          style: text.bodyMedium,
+                        ),
                       ],
                       if (client.emergencyContactPhone != null &&
                           client.emergencyContactPhone!.isNotEmpty) ...[
-                        const SizedBox(height: PelviSpace.xs),
-                        InkWell(
-                          onTap: () => _onPhoneTap(
-                            context,
-                            client.emergencyContactPhone!,
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.phone_outlined,
-                                size: 18,
-                                color: PelviColors.inkMuted,
-                              ),
-                              const SizedBox(width: PelviSpace.sm),
-                              Expanded(
-                                child: Text(
-                                  client.emergencyContactPhone!,
-                                  style: text.bodyMedium?.copyWith(
-                                    color: PelviColors.inkMuted,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        const SizedBox(height: PelviSpace.sm),
+                        _PhoneLink(phone: client.emergencyContactPhone!),
                       ],
                     ],
                     if (client.notes != null && client.notes!.isNotEmpty) ...[
-                      const SizedBox(height: PelviSpace.sm),
+                      const SizedBox(height: PelviSpace.lg),
+                      const Divider(height: 1),
+                      const SizedBox(height: PelviSpace.lg),
                       Text('NOTES', style: text.labelMedium),
-                      const SizedBox(height: PelviSpace.xs),
+                      const SizedBox(height: PelviSpace.sm),
                       ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 72),
+                        constraints: const BoxConstraints(maxHeight: 96),
                         child: SingleChildScrollView(
                           child: Text(
                             client.notes!,
-                            style: text.bodyMedium,
+                            style: text.bodyMedium?.copyWith(
+                              color: PelviColors.inkMuted,
+                            ),
                           ),
                         ),
                       ),
                     ],
-                    const SizedBox(height: PelviSpace.md),
+                    const SizedBox(height: PelviSpace.lg),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
@@ -277,6 +233,48 @@ class ClientProfileScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _PhoneLink extends StatelessWidget {
+  const _PhoneLink({required this.phone});
+
+  final String phone;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => _onPhoneTap(context, phone),
+      child: Text(
+        phone,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: PelviColors.pink700,
+              decoration: TextDecoration.underline,
+              decorationColor: PelviColors.pink700,
+            ),
+      ),
+    );
+  }
+}
+
+class _EmailLink extends StatelessWidget {
+  const _EmailLink({required this.email});
+
+  final String email;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => _launchExternal(Uri(scheme: 'mailto', path: email)),
+      child: Text(
+        email,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: PelviColors.inkMuted,
+              decoration: TextDecoration.underline,
+              decorationColor: PelviColors.inkMuted,
+            ),
+      ),
     );
   }
 }
