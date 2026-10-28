@@ -8,6 +8,7 @@ import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/show_snack.dart';
 import '../clients/client_format.dart';
+import '../clients/client_profile_screen.dart';
 import 'dictation_apply_sheet.dart';
 import 'note_format.dart';
 import 'soap_dictation.dart';
@@ -221,6 +222,16 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
   }
 
+  void _goToClientProfile() {
+    final client = _client;
+    if (client == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ClientProfileScreen(clientId: client.id),
+      ),
+    );
+  }
+
   Future<bool> _onWillPop() async {
     if (_listening) await _speech.cancel();
     _saveDebounce?.cancel();
@@ -274,44 +285,29 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                   ),
                 ),
               ),
-            Padding(
-              padding: const EdgeInsets.only(right: PelviSpace.sm),
-              child: _DictationMicButton(
-                listening: _listening,
-                onPressed: _toggleMic,
-              ),
-            ),
           ],
         ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+        floatingActionButton: _DictationFab(
+          listening: _listening,
+          onPressed: _toggleMic,
+        ),
         body: ListView(
-          padding: const EdgeInsets.all(PelviSpace.md),
+          padding: const EdgeInsets.fromLTRB(
+            PelviSpace.md,
+            PelviSpace.md,
+            PelviSpace.md,
+            PelviSpace.xxl + 72,
+          ),
           children: [
-            Text(
-              when,
-              style: text.bodyMedium?.copyWith(color: PelviColors.inkMuted),
+            _NoteEditorHeader(
+              when: when,
+              listening: _listening,
+              liveWords: _liveWords,
+              onCopyLast: _copyLastNote,
+              onGoToProfile: _client == null ? null : _goToClientProfile,
             ),
-            if (_listening) ...[
-              const SizedBox(height: PelviSpace.sm),
-              Text(
-                _liveWords.isEmpty ? 'Listening… tap mic to stop' : _liveWords,
-                style: text.bodyMedium?.copyWith(color: PelviColors.pink700),
-              ),
-            ],
-            const SizedBox(height: PelviSpace.sm),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: _copyLastNote,
-                style: TextButton.styleFrom(
-                  foregroundColor: PelviColors.purple700,
-                  padding: EdgeInsets.zero,
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Text('Copy last note'),
-              ),
-            ),
-            const SizedBox(height: PelviSpace.md),
+            const SizedBox(height: PelviSpace.lg),
             _SoapField(
               icon: Icons.hearing_outlined,
               label: 'Subjective',
@@ -345,7 +341,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               textAlign: TextAlign.center,
               style: text.labelMedium,
             ),
-            const SizedBox(height: PelviSpace.xxl),
           ],
         ),
       ),
@@ -353,8 +348,100 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   }
 }
 
-class _DictationMicButton extends StatelessWidget {
-  const _DictationMicButton({
+class _NoteEditorHeader extends StatelessWidget {
+  const _NoteEditorHeader({
+    required this.when,
+    required this.listening,
+    required this.liveWords,
+    required this.onCopyLast,
+    required this.onGoToProfile,
+  });
+
+  final String when;
+  final bool listening;
+  final String liveWords;
+  final VoidCallback onCopyLast;
+  final VoidCallback? onGoToProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          when,
+          style: text.labelMedium?.copyWith(
+            color: PelviColors.inkMuted,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        if (listening) ...[
+          const SizedBox(height: PelviSpace.sm),
+          Text(
+            liveWords.isEmpty ? 'Listening… tap mic to stop' : liveWords,
+            style: text.bodyMedium?.copyWith(color: PelviColors.pink700),
+          ),
+        ],
+        const SizedBox(height: PelviSpace.md),
+        Wrap(
+          spacing: PelviSpace.lg,
+          runSpacing: PelviSpace.sm,
+          children: [
+            _HeaderLink(
+              label: 'Copy last note',
+              color: PelviColors.purple700,
+              onPressed: onCopyLast,
+            ),
+            if (onGoToProfile != null)
+              _HeaderLink(
+                label: 'Go to client profile',
+                color: PelviColors.pink700,
+                onPressed: onGoToProfile!,
+              ),
+          ],
+        ),
+        const SizedBox(height: PelviSpace.md),
+        const Divider(height: 1, thickness: 1, color: PelviColors.border),
+      ],
+    );
+  }
+}
+
+class _HeaderLink extends StatelessWidget {
+  const _HeaderLink({
+    required this.label,
+    required this.color,
+    required this.onPressed,
+  });
+
+  final String label;
+  final Color color;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: color,
+        padding: EdgeInsets.zero,
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
+    );
+  }
+}
+
+class _DictationFab extends StatelessWidget {
+  const _DictationFab({
     required this.listening,
     required this.onPressed,
   });
@@ -366,22 +453,25 @@ class _DictationMicButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: listening ? 'Stop dictation' : 'Dictate',
-      child: Material(
-        color: listening ? PelviColors.pink950 : PelviColors.pink700,
-        shape: const CircleBorder(
-          side: BorderSide(color: Colors.white, width: 2),
-        ),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onPressed,
-          child: SizedBox(
-            width: 40,
-            height: 40,
-            child: Icon(
-              listening ? Icons.stop_rounded : Icons.mic_none_rounded,
-              color: PelviColors.inkInverse,
-              size: 22,
-            ),
+      child: SizedBox(
+        width: 60,
+        height: 60,
+        child: FloatingActionButton(
+          heroTag: 'soapDictationFab',
+          onPressed: onPressed,
+          elevation: 0,
+          focusElevation: 0,
+          hoverElevation: 0,
+          highlightElevation: 0,
+          backgroundColor:
+              listening ? PelviColors.pink950 : PelviColors.pink700,
+          foregroundColor: PelviColors.inkInverse,
+          shape: const CircleBorder(
+            side: BorderSide(color: PelviColors.canvas, width: 3),
+          ),
+          child: Icon(
+            listening ? Icons.stop_rounded : Icons.mic_none_rounded,
+            size: 28,
           ),
         ),
       ),

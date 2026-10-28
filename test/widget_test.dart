@@ -409,6 +409,8 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('Peter Kwan'), findsOneWidget);
     expect(find.text('Copy last note'), findsOneWidget);
+    expect(find.text('Go to client profile'), findsOneWidget);
     expect(find.byTooltip('Dictate'), findsOneWidget);
+    expect(find.byType(FloatingActionButton), findsOneWidget);
   });
 }
