@@ -111,6 +111,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
           PelviPickerOption(
             value: s,
             label: appointmentStatusLabel(s),
+            labelColor: appointmentStatusColor(s),
           ),
       ],
     );
@@ -177,6 +178,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
     required VoidCallback? onTap,
     String? errorText,
     IconData trailing = Icons.chevron_right,
+    Color? valueColor,
   }) {
     final text = Theme.of(context).textTheme;
     return InkWell(
@@ -189,7 +191,9 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
         child: Text(
           value.isEmpty ? hint : value,
           style: text.bodyLarge?.copyWith(
-            color: value.isEmpty ? PelviColors.inkMuted : PelviColors.ink,
+            color: value.isEmpty
+                ? PelviColors.inkMuted
+                : (valueColor ?? PelviColors.ink),
           ),
         ),
       ),
@@ -292,6 +296,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
               value: appointmentStatusLabel(_status),
               hint: '',
               onTap: _pickStatus,
+              valueColor: appointmentStatusColor(_status),
             ),
             const SizedBox(height: PelviSpace.lg),
             FilledButton(

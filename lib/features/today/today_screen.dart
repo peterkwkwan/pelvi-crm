@@ -228,12 +228,20 @@ class _TodayAgendaListState extends State<_TodayAgendaList> {
                             decorationColor: ink,
                           ),
                         ),
-                        Text(
-                          '${appointmentStatusLabel(appt.status)} · Note',
-                          style: text.labelMedium?.copyWith(
-                            color: PelviColors.inkMuted,
-                            decoration: decoration,
-                            decorationColor: PelviColors.inkMuted,
+                        Text.rich(
+                          TextSpan(
+                            style: text.labelMedium?.copyWith(
+                              color: PelviColors.inkMuted,
+                            ),
+                            children: [
+                              TextSpan(
+                                text: appointmentStatusLabel(appt.status),
+                                style: TextStyle(
+                                  color: appointmentStatusColor(appt.status),
+                                ),
+                              ),
+                              const TextSpan(text: ' · Note'),
+                            ],
                           ),
                         ),
                       ],

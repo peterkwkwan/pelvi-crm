@@ -9,6 +9,8 @@ class PelviPickerOption<T> {
     required this.label,
     this.subtitle,
     this.searchText,
+    this.labelColor,
+    this.subtitleColor,
   });
 
   final T value;
@@ -17,6 +19,10 @@ class PelviPickerOption<T> {
 
   /// Lowercased haystack for search (defaults to [label] + [subtitle]).
   final String? searchText;
+
+  /// Optional tint for [label] / [subtitle] (e.g. appointment status words).
+  final Color? labelColor;
+  final Color? subtitleColor;
 }
 
 /// Full-height paper-white sheet with hairline rows and optional search.
@@ -212,16 +218,19 @@ class _PelviPickerSheetState<T> extends State<_PelviPickerSheet<T>> {
                                       Text(
                                         o.label,
                                         style: text.labelLarge?.copyWith(
-                                          color: isSelected
-                                              ? PelviColors.pink700
-                                              : PelviColors.ink,
+                                          color: o.labelColor ??
+                                              (isSelected
+                                                  ? PelviColors.pink700
+                                                  : PelviColors.ink),
                                         ),
                                       ),
                                       if (o.subtitle != null &&
                                           o.subtitle!.isNotEmpty)
                                         Text(
                                           o.subtitle!,
-                                          style: text.labelMedium,
+                                          style: text.labelMedium?.copyWith(
+                                            color: o.subtitleColor,
+                                          ),
                                         ),
                                     ],
                                   ),

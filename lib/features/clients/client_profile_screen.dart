@@ -225,9 +225,23 @@ class _AppointmentRow extends StatelessWidget {
                       formatApptWhen(appointment.startsAt),
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
-                    Text(
-                      '${appointmentStatusLabel(appointment.status)} · Open note',
-                      style: Theme.of(context).textTheme.labelMedium,
+                    Text.rich(
+                      TextSpan(
+                        style: Theme.of(context).textTheme.labelMedium,
+                        children: [
+                          TextSpan(
+                            text: appointmentStatusLabel(appointment.status),
+                            style: TextStyle(
+                              color:
+                                  appointmentStatusColor(appointment.status),
+                            ),
+                          ),
+                          TextSpan(
+                            text: ' · Open note',
+                            style: TextStyle(color: PelviColors.inkMuted),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

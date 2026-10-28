@@ -82,6 +82,7 @@ Future<void> openNoteViaPickers(BuildContext context) async {
             value: a,
             label: formatApptWhen(a.startsAt),
             subtitle: appointmentStatusLabel(a.status),
+            subtitleColor: appointmentStatusColor(a.status),
           ),
       ],
     );

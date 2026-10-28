@@ -1,4 +1,7 @@
+import 'package:flutter/material.dart';
+
 import '../../data/database.dart';
+import '../../theme/colors.dart';
 
 String clientDisplayName(Client c) => '${c.firstName} ${c.lastName}'.trim();
 
@@ -8,6 +11,16 @@ String appointmentStatusLabel(AppointmentStatus status) {
     AppointmentStatus.completed => 'Completed',
     AppointmentStatus.cancelled => 'Cancelled',
     AppointmentStatus.noShow => 'No-show',
+  };
+}
+
+/// Status word color only — pink / purple / muted / danger.
+Color appointmentStatusColor(AppointmentStatus status) {
+  return switch (status) {
+    AppointmentStatus.scheduled => PelviColors.pink700,
+    AppointmentStatus.completed => PelviColors.purple700,
+    AppointmentStatus.cancelled => PelviColors.inkMuted,
+    AppointmentStatus.noShow => PelviColors.danger,
   };
 }
 
