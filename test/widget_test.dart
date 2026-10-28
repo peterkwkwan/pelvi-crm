@@ -11,9 +11,43 @@ import 'package:pelvi_crm/features/calendar/calendar_screen.dart';
 import 'package:pelvi_crm/features/notes/note_editor_screen.dart';
 import 'package:pelvi_crm/features/notes/note_format.dart';
 import 'package:pelvi_crm/features/notes/soap_dictation.dart';
+import 'package:pelvi_crm/widgets/show_snack.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('top snack slot grows when conflict copy wraps', (tester) async {
+    const message = 'Overlapping appointment: Peter Kwan at 15:00';
+    await tester.binding.setSurfaceSize(const Size(360, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            return Scaffold(
+              appBar: AppBar(title: const Text('New appointment')),
+              body: Center(
+                child: TextButton(
+                  onPressed: () => showPelviSnackBar(context, message),
+                  child: const Text('Show'),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.tap(find.text('Show'));
+    await tester.pumpAndSettle();
+
+    final snack = tester.widget<SnackBar>(find.byType(SnackBar));
+    final margin = snack.margin! as EdgeInsets;
+    final slot = 640 - margin.top - margin.bottom;
+    // Old helper hard-capped at 56 and clipped the time on wrap.
+    expect(slot, greaterThan(56));
+    expect(find.text(message), findsOneWidget);
+  });
 
   test('formatNoteDate is EEE, d MMM yyyy', () {
     expect(
