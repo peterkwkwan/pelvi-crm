@@ -23,6 +23,9 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
   StreamSubscription<List<RecallDueEntry>>? _recallSub;
+  StreamSubscription<bool>? _recallNotifSub;
+  int _dueCount = 0;
+  bool _recallNotifsOn = true;
 
   static const _pages = <Widget>[
     TodayScreen(),
@@ -41,14 +44,27 @@ class _AppShellState extends State<AppShell> {
     if (!mounted) return;
     final db = AppDatabaseProvider.of(context);
     _recallSub?.cancel();
+    _recallNotifSub?.cancel();
     _recallSub = db.watchRecallDueClients().listen((due) {
-      LocalNotifications.syncRecallDueCount(due.length);
+      _dueCount = due.length;
+      LocalNotifications.syncRecallDueCount(
+        _dueCount,
+        enabled: _recallNotifsOn,
+      );
+    });
+    _recallNotifSub = db.watchRecallNotificationsEnabled().listen((on) {
+      _recallNotifsOn = on;
+      LocalNotifications.syncRecallDueCount(
+        _dueCount,
+        enabled: _recallNotifsOn,
+      );
     });
   }
 
   @override
   void dispose() {
     _recallSub?.cancel();
+    _recallNotifSub?.cancel();
     super.dispose();
   }
 

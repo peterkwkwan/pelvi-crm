@@ -1,14 +1,75 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+
+import '../../data/backup.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/picker_sheet.dart';
+import '../../widgets/show_snack.dart';
 import '../placeholders/stub_screens.dart';
 
 const _recallDayChoices = <int>[14, 21, 30, 45, 60, 90];
+const _durationChoices = <int>[30, 45, 60, 90];
+const _timezoneChoices = <String>[
+  'Asia/Hong_Kong',
+  'Asia/Macau',
+  'Asia/Shanghai',
+  'Asia/Singapore',
+  'America/Toronto',
+  'America/Vancouver',
+  'UTC',
+];
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
+
+  Future<void> _editPracticeName(BuildContext context) async {
+    final db = AppDatabaseProvider.of(context);
+    final current = (await db.getPractitionerName()) ?? '';
+    if (!context.mounted) return;
+    final controller = TextEditingController(text: current);
+    final saved = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Practice name'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            hintText: 'Clinic or practitioner name',
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (saved == null) return;
+    final trimmed = saved.trim();
+    if (trimmed.isEmpty) {
+      if (context.mounted) {
+        showPelviSnackBar(context, 'Practice name cannot be empty');
+      }
+      return;
+    }
+    await db.setPractitionerName(trimmed);
+  }
 
   Future<void> _editRecallWindow(BuildContext context) async {
     final db = AppDatabaseProvider.of(context);
@@ -27,6 +88,167 @@ class MoreScreen extends StatelessWidget {
     await db.setRecallDays(picked);
   }
 
+  Future<void> _editDuration(BuildContext context) async {
+    final db = AppDatabaseProvider.of(context);
+    final current = await db.getDefaultAppointmentMinutes();
+    if (!context.mounted) return;
+    final picked = await showPelviPickerSheet<int>(
+      context: context,
+      title: 'Default duration',
+      selected: current,
+      options: [
+        for (final m in _durationChoices)
+          PelviPickerOption(value: m, label: '$m min'),
+      ],
+    );
+    if (picked == null) return;
+    await db.setDefaultAppointmentMinutes(picked);
+  }
+
+  Future<void> _editTimezone(BuildContext context) async {
+    final db = AppDatabaseProvider.of(context);
+    final current = await db.getTimezone();
+    if (!context.mounted) return;
+    final picked = await showPelviPickerSheet<String>(
+      context: context,
+      title: 'Timezone',
+      selected: current,
+      options: [
+        for (final z in _timezoneChoices)
+          PelviPickerOption(value: z, label: z.replaceAll('_', ' ')),
+      ],
+    );
+    if (picked == null) return;
+    await db.setTimezone(picked);
+  }
+
+  Future<void> _editHours(BuildContext context, {required bool start}) async {
+    final db = AppDatabaseProvider.of(context);
+    final raw = start
+        ? await db.getClinicHoursStart()
+        : await db.getClinicHoursEnd();
+    final parts = raw.split(':');
+    final initial = TimeOfDay(
+      hour: int.tryParse(parts.first) ?? (start ? 9 : 18),
+      minute: parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0,
+    );
+    if (!context.mounted) return;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initial,
+    );
+    if (picked == null) return;
+    final hhmm =
+        '${picked.hour.toString().padLeft(2, '0')}:'
+        '${picked.minute.toString().padLeft(2, '0')}';
+    if (start) {
+      await db.setClinicHoursStart(hhmm);
+    } else {
+      await db.setClinicHoursEnd(hhmm);
+    }
+  }
+
+  Future<void> _exportJson(BuildContext context) async {
+    final db = AppDatabaseProvider.of(context);
+    try {
+      final map = await buildBackupMap(db);
+      final json = encodeBackupJson(map);
+      final dir = await getTemporaryDirectory();
+      final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      final file = File(p.join(dir.path, 'pelvi-backup-$stamp.json'));
+      await file.writeAsString(json);
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'application/json')],
+          subject: 'Pelvi backup',
+          text: 'Pelvi CRM backup (clients, appointments, notes)',
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        showPelviSnackBar(context, 'Export failed: $e');
+      }
+    }
+  }
+
+  Future<void> _exportCsv(BuildContext context) async {
+    final db = AppDatabaseProvider.of(context);
+    try {
+      final csv = await buildBackupCsv(db);
+      final dir = await getTemporaryDirectory();
+      final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      final clients = File(p.join(dir.path, 'pelvi-clients-$stamp.csv'));
+      final appts = File(p.join(dir.path, 'pelvi-appointments-$stamp.csv'));
+      final notes = File(p.join(dir.path, 'pelvi-notes-$stamp.csv'));
+      await clients.writeAsString(csv.clients);
+      await appts.writeAsString(csv.appointments);
+      await notes.writeAsString(csv.notes);
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile(clients.path, mimeType: 'text/csv'),
+            XFile(appts.path, mimeType: 'text/csv'),
+            XFile(notes.path, mimeType: 'text/csv'),
+          ],
+          subject: 'Pelvi CSV export',
+          text: 'Pelvi clients, appointments, and notes (CSV)',
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        showPelviSnackBar(context, 'CSV export failed: $e');
+      }
+    }
+  }
+
+  Future<void> _importRestore(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restore backup?'),
+        content: const Text(
+          'This replaces all clients, appointments, and notes on this device '
+          'with the JSON backup. Settings in the file overwrite matching keys.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: PelviColors.danger,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) return;
+
+    final picked = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['json'],
+    );
+    if (picked.isEmpty || !context.mounted) return;
+
+    final file = picked.single;
+    final db = AppDatabaseProvider.of(context);
+    try {
+      final raw = utf8.decode(await file.readAsBytes());
+      final map = decodeBackupJson(raw);
+      await restoreBackupMap(db, map);
+      if (context.mounted) {
+        showPelviSnackBar(context, 'Backup restored');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        showPelviSnackBar(context, 'Restore failed: $e');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = AppDatabaseProvider.of(context);
@@ -36,65 +258,124 @@ class MoreScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(PelviSpace.md),
         children: [
-          FutureBuilder<String?>(
-            future: db.getPractitionerName(),
-            builder: (context, snap) {
-              final name = snap.data?.trim();
-              return _SettingsBlock(
-                children: [
-                  _SettingsField(
-                    label: 'PRACTITIONER',
-                    value: (name == null || name.isEmpty) ? 'Not set' : name,
-                  ),
-                  const Divider(height: 1),
-                  StreamBuilder<int>(
-                    stream: db.watchRecallDays(),
-                    builder: (context, recallSnap) {
-                      final days = recallSnap.data ?? 30;
-                      return _TappableRow(
-                        title: 'Recall window',
-                        subtitle: '$days days · clients with no visit in window',
-                        onTap: () => _editRecallWindow(context),
-                      );
-                    },
-                  ),
-                ],
-              );
-            },
+          _SettingsBlock(
+            children: [
+              StreamBuilder<String?>(
+                stream: db.watchPractitionerName(),
+                builder: (context, snap) {
+                  final name = snap.data?.trim();
+                  return _TappableRow(
+                    title: 'Practice name',
+                    subtitle:
+                        (name == null || name.isEmpty) ? 'Not set' : name,
+                    onTap: () => _editPracticeName(context),
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              StreamBuilder<int>(
+                stream: db.watchRecallDays(),
+                builder: (context, recallSnap) {
+                  final days = recallSnap.data ?? 30;
+                  return _TappableRow(
+                    title: 'Recall window',
+                    subtitle: '$days days · clients with no visit in window',
+                    onTap: () => _editRecallWindow(context),
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              StreamBuilder<int>(
+                stream: db.watchDefaultAppointmentMinutes(),
+                builder: (context, snap) {
+                  final mins = snap.data ?? 60;
+                  return _TappableRow(
+                    title: 'Default duration',
+                    subtitle: '$mins min · used when end time is unset',
+                    onTap: () => _editDuration(context),
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              StreamBuilder<(String, String)>(
+                stream: db.watchClinicHours(),
+                builder: (context, snap) {
+                  final start = snap.data?.$1 ?? '09:00';
+                  final end = snap.data?.$2 ?? '18:00';
+                  return Column(
+                    children: [
+                      _TappableRow(
+                        title: 'Clinic opens',
+                        subtitle: start,
+                        onTap: () => _editHours(context, start: true),
+                      ),
+                      const Divider(height: 1),
+                      _TappableRow(
+                        title: 'Clinic closes',
+                        subtitle: end,
+                        onTap: () => _editHours(context, start: false),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              StreamBuilder<String>(
+                stream: db.watchTimezone(),
+                builder: (context, snap) {
+                  final tz = snap.data ?? 'Asia/Hong_Kong';
+                  return _TappableRow(
+                    title: 'Timezone',
+                    subtitle:
+                        '${tz.replaceAll('_', ' ')} · label only (device clock)',
+                    onTap: () => _editTimezone(context),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: PelviSpace.lg),
+          _SettingsBlock(
+            children: [
+              StreamBuilder<bool>(
+                stream: db.watchRecallNotificationsEnabled(),
+                builder: (context, snap) {
+                  final on = snap.data ?? true;
+                  return _SwitchRow(
+                    title: 'Recall notifications',
+                    subtitle: 'Daily local reminder when clients are due',
+                    value: on,
+                    onChanged: (v) => db.setRecallNotificationsEnabled(v),
+                  );
+                },
+              ),
+            ],
           ),
           const SizedBox(height: PelviSpace.lg),
           _SettingsBlock(
             children: [
               _TappableRow(
-                title: 'Settings',
-                subtitle: 'Hours, timezone, notifications',
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const StubScreen(
-                        title: 'Settings',
-                        body: 'Full settings arrive with the account slice.',
-                      ),
-                    ),
-                  );
-                },
+                title: 'Export JSON backup',
+                subtitle: 'Clients, appointments, notes + settings',
+                onTap: () => _exportJson(context),
               ),
               const Divider(height: 1),
               _TappableRow(
-                title: 'Export / backup',
-                subtitle: 'Local JSON export (coming soon)',
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const StubScreen(
-                        title: 'Export',
-                        body: 'Backup export is planned after core SOAP flows.',
-                      ),
-                    ),
-                  );
-                },
+                title: 'Export CSV',
+                subtitle: 'Three spreadsheet files via share sheet',
+                onTap: () => _exportCsv(context),
               ),
               const Divider(height: 1),
+              _TappableRow(
+                title: 'Restore from JSON',
+                subtitle: 'Replaces local clinical data',
+                onTap: () => _importRestore(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: PelviSpace.lg),
+          _SettingsBlock(
+            children: [
               _TappableRow(
                 title: 'Account & sync',
                 subtitle: 'Local-first · sync stub idle',
@@ -103,7 +384,8 @@ class MoreScreen extends StatelessWidget {
                     MaterialPageRoute<void>(
                       builder: (_) => const StubScreen(
                         title: 'Account',
-                        body: 'Auth and cloud sync are stubbed for this scaffold.',
+                        body:
+                            'Auth and cloud sync are stubbed for this scaffold.',
                       ),
                     ),
                   );
@@ -136,28 +418,6 @@ class _SettingsBlock extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: children,
         ),
-      ),
-    );
-  }
-}
-
-class _SettingsField extends StatelessWidget {
-  const _SettingsField({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: PelviSpace.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: Theme.of(context).textTheme.labelMedium),
-          const SizedBox(height: PelviSpace.xs),
-          Text(value, style: Theme.of(context).textTheme.labelLarge),
-        ],
       ),
     );
   }
@@ -203,6 +463,48 @@ class _TappableRow extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SwitchRow extends StatelessWidget {
+  const _SwitchRow({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: PelviSpace.sm),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.labelLarge),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: value,
+            activeThumbColor: PelviColors.pink700,
+            onChanged: onChanged,
+          ),
+        ],
       ),
     );
   }

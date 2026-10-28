@@ -41,11 +41,14 @@ class LocalNotifications {
   }
 
   /// Refresh the daily local summary for [dueCount] recall-due clients.
-  static Future<void> syncRecallDueCount(int dueCount) async {
+  static Future<void> syncRecallDueCount(
+    int dueCount, {
+    bool enabled = true,
+  }) async {
     if (!_ready) return;
     try {
       await _plugin.cancel(_dailyId);
-      if (dueCount <= 0) return;
+      if (!enabled || dueCount <= 0) return;
       final body = dueCount == 1
           ? '1 client has not been seen in a while'
           : '$dueCount clients have not been seen in a while';

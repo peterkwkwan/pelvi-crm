@@ -120,6 +120,15 @@ class AppDatabase extends _$AppDatabase {
   static const defaultRecallDays = '30';
   static const defaultAppointmentMinutesKey = 'default_appointment_minutes';
   static const defaultAppointmentMinutes = '60';
+  static const clinicHoursStartKey = 'clinic_hours_start';
+  static const clinicHoursEndKey = 'clinic_hours_end';
+  static const defaultClinicHoursStart = '09:00';
+  static const defaultClinicHoursEnd = '18:00';
+  static const timezoneKey = 'timezone';
+  /// Display/label only — wall clock still uses device local.
+  static const defaultTimezone = 'Asia/Hong_Kong';
+  static const recallNotificationsKey = 'recall_notifications_enabled';
+  static const defaultRecallNotifications = '1';
   /// Comma-separated client ids, most recently opened first.
   static const recentClientIdsKey = 'recent_client_ids';
   static const recentClientLimit = 8;
@@ -246,6 +255,78 @@ class AppDatabase extends _$AppDatabase {
     return int.tryParse(raw ?? defaultAppointmentMinutes) ?? 60;
   }
 
+  Future<void> setDefaultAppointmentMinutes(int minutes) async {
+    final clamped = minutes < 5 ? 5 : minutes;
+    await setSetting(defaultAppointmentMinutesKey, '$clamped');
+  }
+
+  Stream<int> watchDefaultAppointmentMinutes() {
+    return (select(settings)
+          ..where((t) => t.key.equals(defaultAppointmentMinutesKey)))
+        .watch()
+        .map((rows) {
+          final raw = rows.isEmpty ? null : rows.first.value;
+          return int.tryParse(raw ?? defaultAppointmentMinutes) ?? 60;
+        });
+  }
+
+  Future<String> getClinicHoursStart() async =>
+      await getSetting(clinicHoursStartKey) ?? defaultClinicHoursStart;
+
+  Future<void> setClinicHoursStart(String hhmm) =>
+      setSetting(clinicHoursStartKey, hhmm);
+
+  Future<String> getClinicHoursEnd() async =>
+      await getSetting(clinicHoursEndKey) ?? defaultClinicHoursEnd;
+
+  Future<void> setClinicHoursEnd(String hhmm) =>
+      setSetting(clinicHoursEndKey, hhmm);
+
+  Stream<(String, String)> watchClinicHours() {
+    return select(settings).watch().asyncMap((_) async {
+      return (await getClinicHoursStart(), await getClinicHoursEnd());
+    });
+  }
+
+  Future<String> getTimezone() async =>
+      await getSetting(timezoneKey) ?? defaultTimezone;
+
+  Future<void> setTimezone(String iana) => setSetting(timezoneKey, iana);
+
+  Stream<String> watchTimezone() {
+    return (select(settings)..where((t) => t.key.equals(timezoneKey)))
+        .watch()
+        .map((rows) {
+          if (rows.isEmpty) return defaultTimezone;
+          return rows.first.value;
+        });
+  }
+
+  Future<bool> getRecallNotificationsEnabled() async {
+    final raw = await getSetting(recallNotificationsKey);
+    return (raw ?? defaultRecallNotifications) != '0';
+  }
+
+  Future<void> setRecallNotificationsEnabled(bool enabled) =>
+      setSetting(recallNotificationsKey, enabled ? '1' : '0');
+
+  Stream<bool> watchRecallNotificationsEnabled() {
+    return (select(settings)
+          ..where((t) => t.key.equals(recallNotificationsKey)))
+        .watch()
+        .map((rows) {
+          final raw = rows.isEmpty ? null : rows.first.value;
+          return (raw ?? defaultRecallNotifications) != '0';
+        });
+  }
+
+  Stream<String?> watchPractitionerName() {
+    return (select(settings)
+          ..where((t) => t.key.equals(practitionerNameKey)))
+        .watch()
+        .map((rows) => rows.isEmpty ? null : rows.first.value);
+  }
+
   Future<void> ensureDefaults() async {
     final existing = await getSetting(recallDaysKey);
     if (existing == null) {
@@ -257,6 +338,18 @@ class AppDatabase extends _$AppDatabase {
         defaultAppointmentMinutesKey,
         defaultAppointmentMinutes,
       );
+    }
+    if (await getSetting(clinicHoursStartKey) == null) {
+      await setSetting(clinicHoursStartKey, defaultClinicHoursStart);
+    }
+    if (await getSetting(clinicHoursEndKey) == null) {
+      await setSetting(clinicHoursEndKey, defaultClinicHoursEnd);
+    }
+    if (await getSetting(timezoneKey) == null) {
+      await setSetting(timezoneKey, defaultTimezone);
+    }
+    if (await getSetting(recallNotificationsKey) == null) {
+      await setSetting(recallNotificationsKey, defaultRecallNotifications);
     }
   }
 

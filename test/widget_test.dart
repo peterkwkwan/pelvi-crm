@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pelvi_crm/app.dart';
 import 'package:pelvi_crm/data/appointment_overlap.dart';
+import 'package:pelvi_crm/data/backup.dart';
 import 'package:pelvi_crm/data/database.dart';
 import 'package:pelvi_crm/data/database_provider.dart';
 import 'package:pelvi_crm/data/sync_stub.dart';
@@ -560,6 +561,85 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 50));
+  });
+
+  test('settings defaults + backup JSON round-trip', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+
+    expect(await db.getDefaultAppointmentMinutes(), 60);
+    expect(await db.getClinicHoursStart(), '09:00');
+    expect(await db.getClinicHoursEnd(), '18:00');
+    expect(await db.getTimezone(), 'Asia/Hong_Kong');
+    expect(await db.getRecallNotificationsEnabled(), isTrue);
+
+    await db.setPractitionerName('Pelvi Clinic');
+    await db.setDefaultAppointmentMinutes(45);
+    await db.setClinicHoursStart('08:30');
+    await db.setClinicHoursEnd('17:00');
+    await db.setTimezone('America/Toronto');
+    await db.setRecallNotificationsEnabled(false);
+
+    final clientId = await db.insertClient(
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      phone: '123',
+    );
+    final apptId = await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 10, 28, 9),
+    );
+    final note = await db.getOrCreateNoteForAppointment(
+      appointmentId: apptId,
+      clientId: clientId,
+      noteDate: DateTime(2026, 10, 28, 9),
+    );
+    await db.updateNoteSoap(
+      id: note.id,
+      subjective: 'pain',
+      objective: 'rom',
+      assessment: 'strain',
+      plan: 'ice',
+    );
+
+    final json = encodeBackupJson(await buildBackupMap(db));
+    final csv = await buildBackupCsv(db);
+    expect(csv.clients, contains('Ada'));
+    expect(csv.appointments, contains('$clientId'));
+    expect(csv.notes, contains('pain'));
+
+    // Wipe and restore into a fresh db.
+    final other = AppDatabase(NativeDatabase.memory());
+    addTearDown(other.close);
+    await other.ensureDefaults();
+    await other.setPractitionerName('Temp');
+    await other.insertClient(firstName: 'Temp', lastName: 'Client');
+
+    await restoreBackupMap(other, decodeBackupJson(json));
+    expect(await other.getPractitionerName(), 'Pelvi Clinic');
+    expect(await other.getDefaultAppointmentMinutes(), 45);
+    expect(await other.getClinicHoursStart(), '08:30');
+    expect(await other.getTimezone(), 'America/Toronto');
+    expect(await other.getRecallNotificationsEnabled(), isFalse);
+
+    final clients = await other.watchClients().first;
+    expect(clients, hasLength(1));
+    expect(clients.first.firstName, 'Ada');
+    expect(clients.first.id, clientId);
+
+    final appts = await other.watchAppointmentsForClient(clientId).first;
+    expect(appts, hasLength(1));
+    expect(appts.first.id, apptId);
+
+    final notes = await other.watchNotesForClient(clientId).first;
+    expect(notes, hasLength(1));
+    expect(notes.first.subjective, 'pain');
+
+    expect(
+      () => decodeBackupJson('{"format":"nope","version":1}'),
+      throwsFormatException,
+    );
   });
 
   testWidgets('note editor leaves loading after open', (tester) async {
