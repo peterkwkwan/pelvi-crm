@@ -56,7 +56,7 @@ void main() {
         clientName: 'Ada Lovelace',
         startsAt: aStart,
       ),
-      'Overlaps Ada Lovelace at 09:00',
+      'Overlapping appointment: Ada Lovelace at 09:00',
     );
   });
 

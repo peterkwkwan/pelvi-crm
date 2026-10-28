@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
+import '../../widgets/show_snack.dart';
 import '../clients/client_format.dart';
 import 'note_format.dart';
 
@@ -109,9 +110,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     );
     if (!mounted) return;
     if (last == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No earlier note to copy.')),
-      );
+      showPelviSnackBar(context, 'No earlier note to copy.');
       return;
     }
     final ok = await db.copySoapIntoNote(targetId: note.id, source: last);
@@ -122,9 +121,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       _assessment.text = last.assessment;
       _plan.text = last.plan;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Copied last note.')),
-    );
+    showPelviSnackBar(context, 'Copied last note.');
   }
 
   Future<bool> _onWillPop() async {

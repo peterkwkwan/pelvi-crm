@@ -5,6 +5,7 @@ import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/picker_sheet.dart';
+import '../../widgets/show_snack.dart';
 import '../clients/client_format.dart';
 import '../notes/open_note.dart';
 
@@ -158,14 +159,11 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
       Navigator.of(context).pop();
     } on AppointmentConflictException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            appointmentConflictCopy(
-              clientName: clientDisplayName(e.client),
-              startsAt: e.appointment.startsAt,
-            ),
-          ),
+      showPelviSnackBar(
+        context,
+        appointmentConflictCopy(
+          clientName: clientDisplayName(e.client),
+          startsAt: e.appointment.startsAt,
         ),
       );
     } finally {

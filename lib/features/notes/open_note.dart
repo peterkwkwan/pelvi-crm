@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../widgets/picker_sheet.dart';
+import '../../widgets/show_snack.dart';
 import '../clients/client_format.dart';
 import 'note_editor_screen.dart';
 
@@ -34,9 +35,7 @@ Future<void> openNoteViaPickers(BuildContext context) async {
   if (!context.mounted) return;
 
   if (clients.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Add a client first, then book a visit.')),
-    );
+    showPelviSnackBar(context, 'Add a client first, then book a visit.');
     return;
   }
 
@@ -66,11 +65,7 @@ Future<void> openNoteViaPickers(BuildContext context) async {
   if (!context.mounted) return;
 
   if (appts.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Book an appointment for this client first.'),
-      ),
-    );
+    showPelviSnackBar(context, 'Book an appointment for this client first.');
     return;
   }
 

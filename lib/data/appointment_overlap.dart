@@ -24,5 +24,5 @@ String appointmentConflictCopy({
 }) {
   final hh = startsAt.hour.toString().padLeft(2, '0');
   final mm = startsAt.minute.toString().padLeft(2, '0');
-  return 'Overlaps $clientName at $hh:$mm';
+  return 'Overlapping appointment: $clientName at $hh:$mm';
 }
