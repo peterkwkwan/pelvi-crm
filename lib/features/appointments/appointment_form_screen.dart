@@ -3,7 +3,17 @@ import 'package:flutter/material.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
+import '../../widgets/picker_sheet.dart';
 import '../clients/client_format.dart';
+
+/// Next whole hour for a new appointment (12:48 → 13:00; on the hour → that hour).
+TimeOfDay nextWholeHour([DateTime? now]) {
+  final n = now ?? DateTime.now();
+  if (n.minute > 0) {
+    return TimeOfDay(hour: (n.hour + 1) % 24, minute: 0);
+  }
+  return TimeOfDay(hour: n.hour, minute: 0);
+}
 
 /// Create an appointment: date/time + client (+ status).
 class AppointmentFormScreen extends StatefulWidget {
@@ -36,7 +46,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
     super.initState();
     final seed = widget.initialDay ?? DateTime.now();
     _day = DateTime(seed.year, seed.month, seed.day);
-    _time = TimeOfDay.fromDateTime(DateTime.now());
+    _time = nextWholeHour();
     _clientId = widget.clientId;
   }
 
@@ -68,6 +78,42 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
     if (picked != null) setState(() => _time = picked);
   }
 
+  Future<void> _pickClient(List<Client> clients) async {
+    final id = await showPelviPickerSheet<int>(
+      context: context,
+      title: 'Client',
+      selected: _clientId,
+      searchable: true,
+      searchHint: 'Search name or phone',
+      options: [
+        for (final c in clients)
+          PelviPickerOption(
+            value: c.id,
+            label: clientDisplayName(c),
+            subtitle: (c.phone ?? '').trim().isEmpty ? null : c.phone,
+            searchText: '${clientDisplayName(c)} ${c.phone ?? ''}',
+          ),
+      ],
+    );
+    if (id != null) setState(() => _clientId = id);
+  }
+
+  Future<void> _pickStatus() async {
+    final status = await showPelviPickerSheet<AppointmentStatus>(
+      context: context,
+      title: 'Status',
+      selected: _status,
+      options: [
+        for (final s in AppointmentStatus.values)
+          PelviPickerOption(
+            value: s,
+            label: appointmentStatusLabel(s),
+          ),
+      ],
+    );
+    if (status != null) setState(() => _status = status);
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final clientId = _clientId;
@@ -85,6 +131,31 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Widget _fieldTap({
+    required String value,
+    required String hint,
+    required VoidCallback? onTap,
+    String? errorText,
+    IconData trailing = Icons.chevron_right,
+  }) {
+    final text = Theme.of(context).textTheme;
+    return InkWell(
+      onTap: onTap,
+      child: InputDecorator(
+        decoration: InputDecoration(
+          errorText: errorText,
+          suffixIcon: Icon(trailing, size: 18, color: PelviColors.inkMuted),
+        ),
+        child: Text(
+          value.isEmpty ? hint : value,
+          style: text.bodyLarge?.copyWith(
+            color: value.isEmpty ? PelviColors.inkMuted : PelviColors.ink,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -128,72 +199,61 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
                       ),
                     );
                   }
-                  return DropdownButtonFormField<int>(
+                  Client? selected;
+                  for (final c in clients) {
+                    if (c.id == _clientId) {
+                      selected = c;
+                      break;
+                    }
+                  }
+                  return FormField<int>(
+                    key: ValueKey(_clientId),
                     initialValue: _clientId,
-                    decoration: const InputDecoration(),
-                    hint: const Text('Select client'),
-                    items: [
-                      for (final c in clients)
-                        DropdownMenuItem(
-                          value: c.id,
-                          child: Text(clientDisplayName(c)),
-                        ),
-                    ],
-                    onChanged: (id) => setState(() => _clientId = id),
                     validator: (v) => v == null ? 'Pick a client' : null,
+                    builder: (state) => _fieldTap(
+                      value: selected == null
+                          ? ''
+                          : clientDisplayName(selected),
+                      hint: 'Select client',
+                      errorText: state.errorText,
+                      onTap: () async {
+                        await _pickClient(clients);
+                        state.didChange(_clientId);
+                      },
+                    ),
                   );
                 },
               ),
             const SizedBox(height: PelviSpace.md),
             Text('DATE', style: text.labelMedium),
             const SizedBox(height: PelviSpace.xs),
-            InkWell(
-              onTap: _pickDate,
-              child: InputDecorator(
-                decoration: const InputDecoration(
-                  suffixIcon: Icon(Icons.calendar_today_outlined, size: 18),
-                ),
-                child: Text(
+            _fieldTap(
+              value:
                   '${_day.year.toString().padLeft(4, '0')}-'
                   '${_day.month.toString().padLeft(2, '0')}-'
                   '${_day.day.toString().padLeft(2, '0')}',
-                  style: text.bodyLarge,
-                ),
-              ),
+              hint: '',
+              onTap: _pickDate,
+              trailing: Icons.calendar_today_outlined,
             ),
             const SizedBox(height: PelviSpace.md),
             Text('TIME', style: text.labelMedium),
             const SizedBox(height: PelviSpace.xs),
-            InkWell(
-              onTap: _pickTime,
-              child: InputDecorator(
-                decoration: const InputDecoration(
-                  suffixIcon: Icon(Icons.schedule_outlined, size: 18),
-                ),
-                child: Text(
-                  formatApptTime(
-                    DateTime(0, 1, 1, _time.hour, _time.minute),
-                  ),
-                  style: text.bodyLarge,
-                ),
+            _fieldTap(
+              value: formatApptTime(
+                DateTime(0, 1, 1, _time.hour, _time.minute),
               ),
+              hint: '',
+              onTap: _pickTime,
+              trailing: Icons.schedule_outlined,
             ),
             const SizedBox(height: PelviSpace.md),
             Text('STATUS', style: text.labelMedium),
             const SizedBox(height: PelviSpace.xs),
-            DropdownButtonFormField<AppointmentStatus>(
-              initialValue: _status,
-              decoration: const InputDecoration(),
-              items: [
-                for (final s in AppointmentStatus.values)
-                  DropdownMenuItem(
-                    value: s,
-                    child: Text(appointmentStatusLabel(s)),
-                  ),
-              ],
-              onChanged: (s) {
-                if (s != null) setState(() => _status = s);
-              },
+            _fieldTap(
+              value: appointmentStatusLabel(_status),
+              hint: '',
+              onTap: _pickStatus,
             ),
             const SizedBox(height: PelviSpace.lg),
             FilledButton(

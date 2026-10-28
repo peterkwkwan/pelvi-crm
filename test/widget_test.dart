@@ -3,9 +3,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pelvi_crm/app.dart';
 import 'package:pelvi_crm/data/database.dart';
+import 'package:pelvi_crm/features/appointments/appointment_form_screen.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('nextWholeHour rounds past the hour, keeps exact hour', () {
+    expect(
+      nextWholeHour(DateTime(2026, 10, 28, 12, 48)),
+      const TimeOfDay(hour: 13, minute: 0),
+    );
+    expect(
+      nextWholeHour(DateTime(2026, 10, 28, 9, 0)),
+      const TimeOfDay(hour: 9, minute: 0),
+    );
+    expect(
+      nextWholeHour(DateTime(2026, 10, 28, 23, 1)),
+      const TimeOfDay(hour: 0, minute: 0),
+    );
+  });
 
   testWidgets('first-run shows when practitioner name missing', (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
