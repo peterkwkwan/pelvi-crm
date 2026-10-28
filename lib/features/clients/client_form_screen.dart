@@ -21,6 +21,7 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
   late final TextEditingController _phone;
   late final TextEditingController _email;
   late final TextEditingController _emergency;
+  late final TextEditingController _notes;
   bool _saving = false;
 
   bool get _isEdit => widget.existing != null;
@@ -34,6 +35,7 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
     _phone = TextEditingController(text: c?.phone ?? '');
     _email = TextEditingController(text: c?.email ?? '');
     _emergency = TextEditingController(text: c?.emergencyContact ?? '');
+    _notes = TextEditingController(text: c?.notes ?? '');
   }
 
   @override
@@ -43,6 +45,7 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
     _phone.dispose();
     _email.dispose();
     _emergency.dispose();
+    _notes.dispose();
     super.dispose();
   }
 
@@ -59,6 +62,7 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
           phone: _phone.text,
           email: _email.text,
           emergencyContact: _emergency.text,
+          notes: _notes.text,
         );
       } else {
         await db.insertClient(
@@ -67,6 +71,7 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
           phone: _phone.text,
           email: _email.text,
           emergencyContact: _emergency.text,
+          notes: _notes.text,
         );
       }
       if (!mounted) return;
@@ -160,8 +165,18 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
             TextFormField(
               controller: _emergency,
               textCapitalization: TextCapitalization.sentences,
-              textInputAction: TextInputAction.done,
-              onFieldSubmitted: (_) => _save(),
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(hintText: 'Optional'),
+            ),
+            const SizedBox(height: PelviSpace.md),
+            Text('NOTES', style: text.labelMedium),
+            const SizedBox(height: PelviSpace.xs),
+            TextFormField(
+              controller: _notes,
+              minLines: 3,
+              maxLines: 3,
+              keyboardType: TextInputType.multiline,
+              textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(hintText: 'Optional'),
             ),
             const SizedBox(height: PelviSpace.lg),

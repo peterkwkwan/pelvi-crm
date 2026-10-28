@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/empty_state.dart';
@@ -83,74 +84,177 @@ class TodayScreen extends StatelessWidget {
             );
           }
 
-          return ListView.separated(
-            itemCount: rows.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final row = rows[index];
-              final appt = row.appointment;
-              final client = row.client;
-              return InkWell(
-                onTap: () {
-                  openNoteForAppointment(
-                    context,
-                    appointmentId: appt.id,
-                    clientId: client.id,
-                    noteDate: appt.startsAt,
-                  );
-                },
-                splashColor: PelviColors.surfaceMuted,
-                highlightColor: PelviColors.surfaceMuted,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: PelviSpace.md,
-                    vertical: PelviSpace.sm + 4,
+          return _TodayAgendaList(rows: rows);
+        },
+      ),
+    );
+  }
+}
+
+class _TodayAgendaList extends StatefulWidget {
+  const _TodayAgendaList({required this.rows});
+
+  final List<({Appointment appointment, Client client})> rows;
+
+  @override
+  State<_TodayAgendaList> createState() => _TodayAgendaListState();
+}
+
+class _TodayAgendaListState extends State<_TodayAgendaList> {
+  final _scroll = ScrollController();
+  final _upcomingKey = GlobalKey();
+  bool _didInitialScroll = false;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _scheduleInitialScroll();
+  }
+
+  @override
+  void didUpdateWidget(covariant _TodayAgendaList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_didInitialScroll) _scheduleInitialScroll();
+  }
+
+  void _scheduleInitialScroll() {
+    if (_didInitialScroll) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _didInitialScroll) return;
+      _scrollToUpcoming();
+    });
+  }
+
+  void _scrollToUpcoming() {
+    final now = DateTime.now();
+    final upcomingIndex = widget.rows.indexWhere(
+      (r) => !r.appointment.startsAt.isBefore(now),
+    );
+
+    if (upcomingIndex < 0) {
+      // All past → end of list.
+      if (_scroll.hasClients) {
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+        _didInitialScroll = true;
+      }
+      return;
+    }
+
+    if (upcomingIndex == 0) {
+      // First item is upcoming (all future or next is first) → stay at top.
+      _didInitialScroll = true;
+      return;
+    }
+
+    final ctx = _upcomingKey.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0,
+      duration: Duration.zero,
+    );
+    _didInitialScroll = true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final upcomingIndex = widget.rows.indexWhere(
+      (r) => !r.appointment.startsAt.isBefore(now),
+    );
+
+    return ListView.separated(
+      controller: _scroll,
+      itemCount: widget.rows.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final row = widget.rows[index];
+        final appt = row.appointment;
+        final client = row.client;
+        final past = appt.startsAt.isBefore(now);
+        final ink = past ? PelviColors.inkMuted : PelviColors.ink;
+        final decoration =
+            past ? TextDecoration.lineThrough : TextDecoration.none;
+        final text = Theme.of(context).textTheme;
+
+        Widget child = InkWell(
+          onTap: () {
+            openNoteForAppointment(
+              context,
+              appointmentId: appt.id,
+              clientId: client.id,
+              noteDate: appt.startsAt,
+            );
+          },
+          splashColor: PelviColors.surfaceMuted,
+          highlightColor: PelviColors.surfaceMuted,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: PelviSpace.md,
+              vertical: PelviSpace.sm + 4,
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 56),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 56,
+                    child: Text(
+                      formatApptTime(appt.startsAt),
+                      style: text.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: ink,
+                        decoration: decoration,
+                        decorationColor: ink,
+                      ),
+                    ),
                   ),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 56),
-                    child: Row(
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        SizedBox(
-                          width: 56,
-                          child: Text(
-                            formatApptTime(appt.startsAt),
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelLarge
-                                ?.copyWith(fontWeight: FontWeight.w700),
+                        Text(
+                          clientDisplayName(client),
+                          style: text.labelLarge?.copyWith(
+                            color: ink,
+                            decoration: decoration,
+                            decorationColor: ink,
                           ),
                         ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                clientDisplayName(client),
-                                style: Theme.of(context).textTheme.labelLarge,
-                              ),
-                              Text(
-                                '${appointmentStatusLabel(appt.status)} · Note',
-                                style:
-                                    Theme.of(context).textTheme.labelMedium,
-                              ),
-                            ],
+                        Text(
+                          '${appointmentStatusLabel(appt.status)} · Note',
+                          style: text.labelMedium?.copyWith(
+                            color: PelviColors.inkMuted,
+                            decoration: decoration,
+                            decorationColor: PelviColors.inkMuted,
                           ),
-                        ),
-                        const Icon(
-                          Icons.notes_outlined,
-                          color: PelviColors.purple700,
-                          size: 20,
                         ),
                       ],
                     ),
                   ),
-                ),
-              );
-            },
-          );
-        },
-      ),
+                  Icon(
+                    Icons.notes_outlined,
+                    color: past ? PelviColors.inkMuted : PelviColors.purple700,
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        if (index == upcomingIndex) {
+          child = KeyedSubtree(key: _upcomingKey, child: child);
+        }
+        return child;
+      },
     );
   }
 }

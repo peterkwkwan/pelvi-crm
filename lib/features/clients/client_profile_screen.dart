@@ -95,6 +95,20 @@ class ClientProfileScreen extends StatelessWidget {
                       const SizedBox(height: PelviSpace.xs),
                       Text(client.emergencyContact!, style: text.bodyMedium),
                     ],
+                    if (client.notes != null && client.notes!.isNotEmpty) ...[
+                      const SizedBox(height: PelviSpace.sm),
+                      Text('NOTES', style: text.labelMedium),
+                      const SizedBox(height: PelviSpace.xs),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 72),
+                        child: SingleChildScrollView(
+                          child: Text(
+                            client.notes!,
+                            style: text.bodyMedium,
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: PelviSpace.md),
                     SizedBox(
                       width: double.infinity,

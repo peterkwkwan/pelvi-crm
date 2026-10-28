@@ -67,10 +67,22 @@ void main() {
       lastName: 'Lovelace',
       phone: '123',
       email: 'ada@example.com',
+      notes: 'prefers mornings',
     );
     final client = await db.getClient(clientId);
     expect(client?.firstName, 'Ada');
     expect(client?.phone, '123');
+    expect(client?.notes, 'prefers mornings');
+
+    await db.updateClient(
+      id: clientId,
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      phone: '123',
+      email: 'ada@example.com',
+      notes: 'updated note',
+    );
+    expect((await db.getClient(clientId))?.notes, 'updated note');
 
     final starts = DateTime(2026, 10, 28, 9, 30);
     await db.insertAppointment(clientId: clientId, startsAt: starts);
