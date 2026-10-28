@@ -150,12 +150,45 @@ class ClientProfileScreen extends StatelessWidget {
                         ),
                       ),
                     ],
-                    if (client.emergencyContact != null &&
-                        client.emergencyContact!.isNotEmpty) ...[
+                    if ((client.emergencyContact != null &&
+                            client.emergencyContact!.isNotEmpty) ||
+                        (client.emergencyContactPhone != null &&
+                            client.emergencyContactPhone!.isNotEmpty)) ...[
                       const SizedBox(height: PelviSpace.sm),
                       Text('EMERGENCY', style: text.labelMedium),
-                      const SizedBox(height: PelviSpace.xs),
-                      Text(client.emergencyContact!, style: text.bodyMedium),
+                      if (client.emergencyContact != null &&
+                          client.emergencyContact!.isNotEmpty) ...[
+                        const SizedBox(height: PelviSpace.xs),
+                        Text(client.emergencyContact!, style: text.bodyMedium),
+                      ],
+                      if (client.emergencyContactPhone != null &&
+                          client.emergencyContactPhone!.isNotEmpty) ...[
+                        const SizedBox(height: PelviSpace.xs),
+                        InkWell(
+                          onTap: () => _onPhoneTap(
+                            context,
+                            client.emergencyContactPhone!,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.phone_outlined,
+                                size: 18,
+                                color: PelviColors.inkMuted,
+                              ),
+                              const SizedBox(width: PelviSpace.sm),
+                              Expanded(
+                                child: Text(
+                                  client.emergencyContactPhone!,
+                                  style: text.bodyMedium?.copyWith(
+                                    color: PelviColors.inkMuted,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                     if (client.notes != null && client.notes!.isNotEmpty) ...[
                       const SizedBox(height: PelviSpace.sm),

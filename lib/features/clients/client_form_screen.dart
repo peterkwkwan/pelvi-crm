@@ -4,7 +4,7 @@ import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 
-/// Create or edit a client (name, phone, email; optional emergency contact).
+/// Create or edit a client (name, phone, email; optional emergency name/phone).
 class ClientFormScreen extends StatefulWidget {
   const ClientFormScreen({super.key, this.existing});
 
@@ -21,6 +21,7 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
   late final TextEditingController _phone;
   late final TextEditingController _email;
   late final TextEditingController _emergency;
+  late final TextEditingController _emergencyPhone;
   late final TextEditingController _notes;
   bool _saving = false;
 
@@ -35,6 +36,8 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
     _phone = TextEditingController(text: c?.phone ?? '');
     _email = TextEditingController(text: c?.email ?? '');
     _emergency = TextEditingController(text: c?.emergencyContact ?? '');
+    _emergencyPhone =
+        TextEditingController(text: c?.emergencyContactPhone ?? '');
     _notes = TextEditingController(text: c?.notes ?? '');
   }
 
@@ -45,6 +48,7 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
     _phone.dispose();
     _email.dispose();
     _emergency.dispose();
+    _emergencyPhone.dispose();
     _notes.dispose();
     super.dispose();
   }
@@ -62,6 +66,7 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
           phone: _phone.text,
           email: _email.text,
           emergencyContact: _emergency.text,
+          emergencyContactPhone: _emergencyPhone.text,
           notes: _notes.text,
         );
       } else {
@@ -71,6 +76,7 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
           phone: _phone.text,
           email: _email.text,
           emergencyContact: _emergency.text,
+          emergencyContactPhone: _emergencyPhone.text,
           notes: _notes.text,
         );
       }
@@ -164,7 +170,16 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
             const SizedBox(height: PelviSpace.xs),
             TextFormField(
               controller: _emergency,
-              textCapitalization: TextCapitalization.sentences,
+              textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(hintText: 'Name (optional)'),
+            ),
+            const SizedBox(height: PelviSpace.md),
+            Text('EMERGENCY PHONE', style: text.labelMedium),
+            const SizedBox(height: PelviSpace.xs),
+            TextFormField(
+              controller: _emergencyPhone,
+              keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.next,
               decoration: const InputDecoration(hintText: 'Optional'),
             ),

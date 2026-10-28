@@ -142,11 +142,15 @@ void main() {
       lastName: 'Lovelace',
       phone: '123',
       email: 'ada@example.com',
+      emergencyContact: 'Lord Byron',
+      emergencyContactPhone: '555',
       notes: 'prefers mornings',
     );
     final client = await db.getClient(clientId);
     expect(client?.firstName, 'Ada');
     expect(client?.phone, '123');
+    expect(client?.emergencyContact, 'Lord Byron');
+    expect(client?.emergencyContactPhone, '555');
     expect(client?.notes, 'prefers mornings');
 
     await db.updateClient(
@@ -155,9 +159,13 @@ void main() {
       lastName: 'Lovelace',
       phone: '123',
       email: 'ada@example.com',
+      emergencyContact: 'Lord Byron',
+      emergencyContactPhone: '556',
       notes: 'updated note',
     );
-    expect((await db.getClient(clientId))?.notes, 'updated note');
+    final updated = await db.getClient(clientId);
+    expect(updated?.notes, 'updated note');
+    expect(updated?.emergencyContactPhone, '556');
 
     final starts = DateTime(2026, 10, 28, 9, 30);
     await db.insertAppointment(clientId: clientId, startsAt: starts);

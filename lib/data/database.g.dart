@@ -102,6 +102,17 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _emergencyContactPhoneMeta =
+      const VerificationMeta('emergencyContactPhone');
+  @override
+  late final GeneratedColumn<String> emergencyContactPhone =
+      GeneratedColumn<String>(
+        'emergency_contact_phone',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _notesMeta = const VerificationMeta('notes');
   @override
   late final GeneratedColumn<String> notes = GeneratedColumn<String>(
@@ -145,6 +156,7 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
     joinDate,
     birthday,
     emergencyContact,
+    emergencyContactPhone,
     notes,
     createdAt,
     updatedAt,
@@ -213,6 +225,15 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
         ),
       );
     }
+    if (data.containsKey('emergency_contact_phone')) {
+      context.handle(
+        _emergencyContactPhoneMeta,
+        emergencyContactPhone.isAcceptableOrUnknown(
+          data['emergency_contact_phone']!,
+          _emergencyContactPhoneMeta,
+        ),
+      );
+    }
     if (data.containsKey('notes')) {
       context.handle(
         _notesMeta,
@@ -272,6 +293,10 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
         DriftSqlType.string,
         data['${effectivePrefix}emergency_contact'],
       ),
+      emergencyContactPhone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}emergency_contact_phone'],
+      ),
       notes: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
@@ -302,6 +327,7 @@ class Client extends DataClass implements Insertable<Client> {
   final DateTime? joinDate;
   final DateTime? birthday;
   final String? emergencyContact;
+  final String? emergencyContactPhone;
   final String? notes;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -314,6 +340,7 @@ class Client extends DataClass implements Insertable<Client> {
     this.joinDate,
     this.birthday,
     this.emergencyContact,
+    this.emergencyContactPhone,
     this.notes,
     required this.createdAt,
     required this.updatedAt,
@@ -338,6 +365,9 @@ class Client extends DataClass implements Insertable<Client> {
     }
     if (!nullToAbsent || emergencyContact != null) {
       map['emergency_contact'] = Variable<String>(emergencyContact);
+    }
+    if (!nullToAbsent || emergencyContactPhone != null) {
+      map['emergency_contact_phone'] = Variable<String>(emergencyContactPhone);
     }
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
@@ -367,6 +397,9 @@ class Client extends DataClass implements Insertable<Client> {
       emergencyContact: emergencyContact == null && nullToAbsent
           ? const Value.absent()
           : Value(emergencyContact),
+      emergencyContactPhone: emergencyContactPhone == null && nullToAbsent
+          ? const Value.absent()
+          : Value(emergencyContactPhone),
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
@@ -389,6 +422,9 @@ class Client extends DataClass implements Insertable<Client> {
       joinDate: serializer.fromJson<DateTime?>(json['joinDate']),
       birthday: serializer.fromJson<DateTime?>(json['birthday']),
       emergencyContact: serializer.fromJson<String?>(json['emergencyContact']),
+      emergencyContactPhone: serializer.fromJson<String?>(
+        json['emergencyContactPhone'],
+      ),
       notes: serializer.fromJson<String?>(json['notes']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -406,6 +442,9 @@ class Client extends DataClass implements Insertable<Client> {
       'joinDate': serializer.toJson<DateTime?>(joinDate),
       'birthday': serializer.toJson<DateTime?>(birthday),
       'emergencyContact': serializer.toJson<String?>(emergencyContact),
+      'emergencyContactPhone': serializer.toJson<String?>(
+        emergencyContactPhone,
+      ),
       'notes': serializer.toJson<String?>(notes),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -421,6 +460,7 @@ class Client extends DataClass implements Insertable<Client> {
     Value<DateTime?> joinDate = const Value.absent(),
     Value<DateTime?> birthday = const Value.absent(),
     Value<String?> emergencyContact = const Value.absent(),
+    Value<String?> emergencyContactPhone = const Value.absent(),
     Value<String?> notes = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -435,6 +475,9 @@ class Client extends DataClass implements Insertable<Client> {
     emergencyContact: emergencyContact.present
         ? emergencyContact.value
         : this.emergencyContact,
+    emergencyContactPhone: emergencyContactPhone.present
+        ? emergencyContactPhone.value
+        : this.emergencyContactPhone,
     notes: notes.present ? notes.value : this.notes,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -451,6 +494,9 @@ class Client extends DataClass implements Insertable<Client> {
       emergencyContact: data.emergencyContact.present
           ? data.emergencyContact.value
           : this.emergencyContact,
+      emergencyContactPhone: data.emergencyContactPhone.present
+          ? data.emergencyContactPhone.value
+          : this.emergencyContactPhone,
       notes: data.notes.present ? data.notes.value : this.notes,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -468,6 +514,7 @@ class Client extends DataClass implements Insertable<Client> {
           ..write('joinDate: $joinDate, ')
           ..write('birthday: $birthday, ')
           ..write('emergencyContact: $emergencyContact, ')
+          ..write('emergencyContactPhone: $emergencyContactPhone, ')
           ..write('notes: $notes, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -485,6 +532,7 @@ class Client extends DataClass implements Insertable<Client> {
     joinDate,
     birthday,
     emergencyContact,
+    emergencyContactPhone,
     notes,
     createdAt,
     updatedAt,
@@ -501,6 +549,7 @@ class Client extends DataClass implements Insertable<Client> {
           other.joinDate == this.joinDate &&
           other.birthday == this.birthday &&
           other.emergencyContact == this.emergencyContact &&
+          other.emergencyContactPhone == this.emergencyContactPhone &&
           other.notes == this.notes &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -515,6 +564,7 @@ class ClientsCompanion extends UpdateCompanion<Client> {
   final Value<DateTime?> joinDate;
   final Value<DateTime?> birthday;
   final Value<String?> emergencyContact;
+  final Value<String?> emergencyContactPhone;
   final Value<String?> notes;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -527,6 +577,7 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     this.joinDate = const Value.absent(),
     this.birthday = const Value.absent(),
     this.emergencyContact = const Value.absent(),
+    this.emergencyContactPhone = const Value.absent(),
     this.notes = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -540,6 +591,7 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     this.joinDate = const Value.absent(),
     this.birthday = const Value.absent(),
     this.emergencyContact = const Value.absent(),
+    this.emergencyContactPhone = const Value.absent(),
     this.notes = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -554,6 +606,7 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     Expression<DateTime>? joinDate,
     Expression<DateTime>? birthday,
     Expression<String>? emergencyContact,
+    Expression<String>? emergencyContactPhone,
     Expression<String>? notes,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -567,6 +620,8 @@ class ClientsCompanion extends UpdateCompanion<Client> {
       if (joinDate != null) 'join_date': joinDate,
       if (birthday != null) 'birthday': birthday,
       if (emergencyContact != null) 'emergency_contact': emergencyContact,
+      if (emergencyContactPhone != null)
+        'emergency_contact_phone': emergencyContactPhone,
       if (notes != null) 'notes': notes,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -582,6 +637,7 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     Value<DateTime?>? joinDate,
     Value<DateTime?>? birthday,
     Value<String?>? emergencyContact,
+    Value<String?>? emergencyContactPhone,
     Value<String?>? notes,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -595,6 +651,8 @@ class ClientsCompanion extends UpdateCompanion<Client> {
       joinDate: joinDate ?? this.joinDate,
       birthday: birthday ?? this.birthday,
       emergencyContact: emergencyContact ?? this.emergencyContact,
+      emergencyContactPhone:
+          emergencyContactPhone ?? this.emergencyContactPhone,
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -628,6 +686,11 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     if (emergencyContact.present) {
       map['emergency_contact'] = Variable<String>(emergencyContact.value);
     }
+    if (emergencyContactPhone.present) {
+      map['emergency_contact_phone'] = Variable<String>(
+        emergencyContactPhone.value,
+      );
+    }
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
@@ -651,6 +714,7 @@ class ClientsCompanion extends UpdateCompanion<Client> {
           ..write('joinDate: $joinDate, ')
           ..write('birthday: $birthday, ')
           ..write('emergencyContact: $emergencyContact, ')
+          ..write('emergencyContactPhone: $emergencyContactPhone, ')
           ..write('notes: $notes, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -1515,8 +1579,10 @@ class Note extends DataClass implements Insertable<Note> {
   final String assessment;
   final String plan;
 
-  /// Append-only after finalize; S/O/A/P stay locked.
+  /// Legacy column; unused (notes stay editable).
   final String addendum;
+
+  /// Legacy draft/final; unused (no lock).
   final NoteStatus status;
   final DateTime? finalizedAt;
   final DateTime createdAt;
@@ -2151,6 +2217,7 @@ typedef $$ClientsTableCreateCompanionBuilder =
       Value<DateTime?> joinDate,
       Value<DateTime?> birthday,
       Value<String?> emergencyContact,
+      Value<String?> emergencyContactPhone,
       Value<String?> notes,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -2165,6 +2232,7 @@ typedef $$ClientsTableUpdateCompanionBuilder =
       Value<DateTime?> joinDate,
       Value<DateTime?> birthday,
       Value<String?> emergencyContact,
+      Value<String?> emergencyContactPhone,
       Value<String?> notes,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -2258,6 +2326,11 @@ class $$ClientsTableFilterComposer
 
   ColumnFilters<String> get emergencyContact => $composableBuilder(
     column: $table.emergencyContact,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get emergencyContactPhone => $composableBuilder(
+    column: $table.emergencyContactPhone,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2376,6 +2449,11 @@ class $$ClientsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get emergencyContactPhone => $composableBuilder(
+    column: $table.emergencyContactPhone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get notes => $composableBuilder(
     column: $table.notes,
     builder: (column) => ColumnOrderings(column),
@@ -2424,6 +2502,11 @@ class $$ClientsTableAnnotationComposer
 
   GeneratedColumn<String> get emergencyContact => $composableBuilder(
     column: $table.emergencyContact,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get emergencyContactPhone => $composableBuilder(
+    column: $table.emergencyContactPhone,
     builder: (column) => column,
   );
 
@@ -2523,6 +2606,7 @@ class $$ClientsTableTableManager
                 Value<DateTime?> joinDate = const Value.absent(),
                 Value<DateTime?> birthday = const Value.absent(),
                 Value<String?> emergencyContact = const Value.absent(),
+                Value<String?> emergencyContactPhone = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -2535,6 +2619,7 @@ class $$ClientsTableTableManager
                 joinDate: joinDate,
                 birthday: birthday,
                 emergencyContact: emergencyContact,
+                emergencyContactPhone: emergencyContactPhone,
                 notes: notes,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -2549,6 +2634,7 @@ class $$ClientsTableTableManager
                 Value<DateTime?> joinDate = const Value.absent(),
                 Value<DateTime?> birthday = const Value.absent(),
                 Value<String?> emergencyContact = const Value.absent(),
+                Value<String?> emergencyContactPhone = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -2561,6 +2647,7 @@ class $$ClientsTableTableManager
                 joinDate: joinDate,
                 birthday: birthday,
                 emergencyContact: emergencyContact,
+                emergencyContactPhone: emergencyContactPhone,
                 notes: notes,
                 createdAt: createdAt,
                 updatedAt: updatedAt,

@@ -39,6 +39,7 @@ class Clients extends Table {
   DateTimeColumn get joinDate => dateTime().nullable()();
   DateTimeColumn get birthday => dateTime().nullable()();
   TextColumn get emergencyContact => text().nullable()();
+  TextColumn get emergencyContactPhone => text().nullable()();
   TextColumn get notes => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
@@ -91,7 +92,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -102,6 +103,9 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 3) {
             await m.addColumn(clients, clients.notes);
+          }
+          if (from < 4) {
+            await m.addColumn(clients, clients.emergencyContactPhone);
           }
         },
       );
@@ -182,6 +186,7 @@ class AppDatabase extends _$AppDatabase {
     String? phone,
     String? email,
     String? emergencyContact,
+    String? emergencyContactPhone,
     String? notes,
   }) {
     return into(clients).insert(
@@ -191,6 +196,7 @@ class AppDatabase extends _$AppDatabase {
         phone: Value(_blankToNull(phone)),
         email: Value(_blankToNull(email)),
         emergencyContact: Value(_blankToNull(emergencyContact)),
+        emergencyContactPhone: Value(_blankToNull(emergencyContactPhone)),
         notes: Value(_blankToNull(notes)),
       ),
     );
@@ -203,6 +209,7 @@ class AppDatabase extends _$AppDatabase {
     String? phone,
     String? email,
     String? emergencyContact,
+    String? emergencyContactPhone,
     String? notes,
   }) async {
     final n = await (update(clients)..where((t) => t.id.equals(id))).write(
@@ -212,6 +219,7 @@ class AppDatabase extends _$AppDatabase {
         phone: Value(_blankToNull(phone)),
         email: Value(_blankToNull(email)),
         emergencyContact: Value(_blankToNull(emergencyContact)),
+        emergencyContactPhone: Value(_blankToNull(emergencyContactPhone)),
         notes: Value(_blankToNull(notes)),
         updatedAt: Value(DateTime.now()),
       ),
