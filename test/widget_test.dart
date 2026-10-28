@@ -7,9 +7,17 @@ import 'package:pelvi_crm/data/database_provider.dart';
 import 'package:pelvi_crm/data/sync_stub.dart';
 import 'package:pelvi_crm/features/appointments/appointment_form_screen.dart';
 import 'package:pelvi_crm/features/notes/note_editor_screen.dart';
+import 'package:pelvi_crm/features/notes/note_format.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('formatNoteDate is weekday – day – year', () {
+    expect(
+      formatNoteDate(DateTime(2026, 10, 28)),
+      'Wednesday – 28 – 2026',
+    );
+  });
 
   test('nextWholeHour rounds past the hour, keeps exact hour', () {
     expect(
@@ -96,13 +104,17 @@ void main() {
     expect(today.first.client.lastName, 'Lovelace');
   });
 
-  test('SOAP draft finalize locks fields; addendum and copy last', () async {
+  test('SOAP stays editable; copy last is same-client only', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
 
     final clientId = await db.insertClient(
       firstName: 'Ada',
       lastName: 'Lovelace',
+    );
+    final otherId = await db.insertClient(
+      firstName: 'Other',
+      lastName: 'Client',
     );
     final appt1 = await db.insertAppointment(
       clientId: clientId,
@@ -112,51 +124,67 @@ void main() {
       clientId: clientId,
       startsAt: DateTime(2026, 10, 28, 10),
     );
+    final otherAppt = await db.insertAppointment(
+      clientId: otherId,
+      startsAt: DateTime(2026, 10, 27, 10),
+    );
 
     final first = await db.getOrCreateNoteForAppointment(
       appointmentId: appt1,
       clientId: clientId,
       noteDate: DateTime(2026, 10, 1, 10),
     );
-    await db.updateNoteDraft(
+    await db.updateNoteSoap(
       id: first.id,
       subjective: 'pain',
       objective: 'ROM limited',
       assessment: 'strain',
       plan: 'ice',
     );
-    expect(await db.finalizeNote(first.id), isTrue);
 
-    // Finalized: draft write is a no-op.
-    await db.updateNoteDraft(
+    // Always editable after the fact.
+    await db.updateNoteSoap(
       id: first.id,
       subjective: 'rewritten',
+      objective: 'ROM limited',
+      assessment: 'strain',
+      plan: 'ice',
+    );
+    expect((await db.getNote(first.id))?.subjective, 'rewritten');
+
+    final otherNote = await db.getOrCreateNoteForAppointment(
+      appointmentId: otherAppt,
+      clientId: otherId,
+      noteDate: DateTime(2026, 10, 27, 10),
+    );
+    await db.updateNoteSoap(
+      id: otherNote.id,
+      subjective: 'other client',
       objective: 'x',
       assessment: 'x',
       plan: 'x',
     );
-    final locked = await db.getNote(first.id);
-    expect(locked?.status, NoteStatus.finalized);
-    expect(locked?.subjective, 'pain');
-
-    await db.updateNoteAddendum(id: first.id, addendum: 'follow-up ok');
-    expect((await db.getNote(first.id))?.addendum, 'follow-up ok');
 
     final second = await db.getOrCreateNoteForAppointment(
       appointmentId: appt2,
       clientId: clientId,
       noteDate: DateTime(2026, 10, 28, 10),
     );
-    expect(second.status, NoteStatus.draft);
+    final last = await db.getLastNoteForClient(
+      clientId,
+      exceptNoteId: second.id,
+    );
+    expect(last?.id, first.id);
+    expect(last?.subjective, 'rewritten');
+
     expect(
-      await db.copySoapIntoDraft(targetId: second.id, source: locked!),
+      await db.copySoapIntoNote(targetId: second.id, source: last!),
       isTrue,
     );
     final copied = await db.getNote(second.id);
-    expect(copied?.subjective, 'pain');
+    expect(copied?.subjective, 'rewritten');
     expect(copied?.plan, 'ice');
 
-    // Same appointment reopens the same note.
     final again = await db.getOrCreateNoteForAppointment(
       appointmentId: appt2,
       clientId: clientId,

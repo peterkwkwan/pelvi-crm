@@ -261,10 +261,6 @@ class _NoteHistoryRow extends StatelessWidget {
                       formatNoteDate(note.noteDate),
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
-                    Text(
-                      noteStatusLabel(note.status),
-                      style: Theme.of(context).textTheme.labelMedium,
-                    ),
                   ],
                 ),
               ),

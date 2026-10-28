@@ -11,7 +11,7 @@ enum AppointmentStatus {
   noShow,
 }
 
-/// Note draft vs finalized.
+/// Legacy note status; unused (notes stay editable).
 enum NoteStatus {
   draft,
   finalized,
@@ -53,8 +53,9 @@ class Notes extends Table {
   TextColumn get objective => text().withDefault(const Constant(''))();
   TextColumn get assessment => text().withDefault(const Constant(''))();
   TextColumn get plan => text().withDefault(const Constant(''))();
-  /// Append-only after finalize; S/O/A/P stay locked.
+  /// Legacy column; unused (notes stay editable).
   TextColumn get addendum => text().withDefault(const Constant(''))();
+  /// Legacy draft/final; unused (no lock).
   IntColumn get status =>
       intEnum<NoteStatus>().withDefault(Constant(NoteStatus.draft.index))();
   DateTimeColumn get finalizedAt => dateTime().nullable()();
@@ -298,7 +299,7 @@ class AppDatabase extends _$AppDatabase {
     return (await getNote(id))!;
   }
 
-  Future<void> updateNoteDraft({
+  Future<void> updateNoteSoap({
     required int id,
     required String subjective,
     required String objective,
@@ -306,7 +307,7 @@ class AppDatabase extends _$AppDatabase {
     required String plan,
   }) async {
     final note = await getNote(id);
-    if (note == null || note.status != NoteStatus.draft) return;
+    if (note == null) return;
     await (update(notes)..where((t) => t.id.equals(id))).write(
       NotesCompanion(
         subjective: Value(subjective),
@@ -318,40 +319,13 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  Future<bool> finalizeNote(int id) async {
-    final note = await getNote(id);
-    if (note == null || note.status != NoteStatus.draft) return false;
-    final n = await (update(notes)..where((t) => t.id.equals(id))).write(
-      NotesCompanion(
-        status: const Value(NoteStatus.finalized),
-        finalizedAt: Value(DateTime.now()),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
-    return n > 0;
-  }
-
-  Future<void> updateNoteAddendum({
-    required int id,
-    required String addendum,
-  }) async {
-    final note = await getNote(id);
-    if (note == null || note.status != NoteStatus.finalized) return;
-    await (update(notes)..where((t) => t.id.equals(id))).write(
-      NotesCompanion(
-        addendum: Value(addendum),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
-  }
-
-  /// Copy S/O/A/P from [source] into a draft [targetId]. No-op if not draft.
-  Future<bool> copySoapIntoDraft({
+  /// Copy S/O/A/P from [source] into [targetId] (same-client caller checks).
+  Future<bool> copySoapIntoNote({
     required int targetId,
     required Note source,
   }) async {
     final target = await getNote(targetId);
-    if (target == null || target.status != NoteStatus.draft) return false;
+    if (target == null) return false;
     await (update(notes)..where((t) => t.id.equals(targetId))).write(
       NotesCompanion(
         subjective: Value(source.subjective),

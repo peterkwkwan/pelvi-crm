@@ -8,7 +8,7 @@ import '../../theme/theme.dart';
 import '../clients/client_format.dart';
 import 'note_format.dart';
 
-/// SOAP note editor: draft edit → finalize → view-only + addendum.
+/// Always-editable SOAP note editor with autosave.
 class NoteEditorScreen extends StatefulWidget {
   const NoteEditorScreen({super.key, required this.noteId});
 
@@ -23,7 +23,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   final _objective = TextEditingController();
   final _assessment = TextEditingController();
   final _plan = TextEditingController();
-  final _addendum = TextEditingController();
 
   Note? _note;
   Client? _client;
@@ -31,8 +30,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   bool _loading = true;
   bool _saving = false;
   bool _hydrated = false;
-  Timer? _draftDebounce;
-  Timer? _addendumDebounce;
+  Timer? _saveDebounce;
 
   @override
   void initState() {
@@ -45,13 +43,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   @override
   void dispose() {
-    _draftDebounce?.cancel();
-    _addendumDebounce?.cancel();
+    _saveDebounce?.cancel();
     _subjective.dispose();
     _objective.dispose();
     _assessment.dispose();
     _plan.dispose();
-    _addendum.dispose();
     super.dispose();
   }
 
@@ -76,25 +72,23 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         _objective.text = note.objective;
         _assessment.text = note.assessment;
         _plan.text = note.plan;
-        _addendum.text = note.addendum;
         _hydrated = true;
       }
       _loading = false;
     });
   }
 
-  void _scheduleDraftSave() {
-    if (_note?.status != NoteStatus.draft) return;
-    _draftDebounce?.cancel();
-    _draftDebounce = Timer(const Duration(milliseconds: 400), _saveDraft);
+  void _scheduleSave() {
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 400), _save);
   }
 
-  Future<void> _saveDraft() async {
+  Future<void> _save() async {
     final note = _note;
-    if (note == null || note.status != NoteStatus.draft) return;
+    if (note == null) return;
     setState(() => _saving = true);
     final db = AppDatabaseProvider.of(context);
-    await db.updateNoteDraft(
+    await db.updateNoteSoap(
       id: note.id,
       subjective: _subjective.text,
       objective: _objective.text,
@@ -105,26 +99,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     setState(() => _saving = false);
   }
 
-  void _scheduleAddendumSave() {
-    if (_note?.status != NoteStatus.finalized) return;
-    _addendumDebounce?.cancel();
-    _addendumDebounce =
-        Timer(const Duration(milliseconds: 400), _saveAddendum);
-  }
-
-  Future<void> _saveAddendum() async {
-    final note = _note;
-    if (note == null || note.status != NoteStatus.finalized) return;
-    setState(() => _saving = true);
-    final db = AppDatabaseProvider.of(context);
-    await db.updateNoteAddendum(id: note.id, addendum: _addendum.text);
-    if (!mounted) return;
-    setState(() => _saving = false);
-  }
-
   Future<void> _copyLastNote() async {
     final note = _note;
-    if (note == null || note.status != NoteStatus.draft) return;
+    if (note == null) return;
     final db = AppDatabaseProvider.of(context);
     final last = await db.getLastNoteForClient(
       note.clientId,
@@ -137,7 +114,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       );
       return;
     }
-    final ok = await db.copySoapIntoDraft(targetId: note.id, source: last);
+    final ok = await db.copySoapIntoNote(targetId: note.id, source: last);
     if (!ok || !mounted) return;
     setState(() {
       _subjective.text = last.subjective;
@@ -146,52 +123,13 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       _plan.text = last.plan;
     });
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Copied last note into this draft.')),
+      const SnackBar(content: Text('Copied last note.')),
     );
-  }
-
-  Future<void> _finalize() async {
-    final note = _note;
-    if (note == null || note.status != NoteStatus.draft) return;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Finalize note?'),
-        content: const Text(
-          'After finalizing, S/O/A/P become view-only. '
-          'You can still add an addendum.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Finalize'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    await _saveDraft();
-    if (!mounted) return;
-    final db = AppDatabaseProvider.of(context);
-    final ok = await db.finalizeNote(note.id);
-    if (!ok || !mounted) return;
-    await _load();
   }
 
   Future<bool> _onWillPop() async {
-    _draftDebounce?.cancel();
-    _addendumDebounce?.cancel();
-    if (_note?.status == NoteStatus.draft) {
-      await _saveDraft();
-    } else if (_note?.status == NoteStatus.finalized) {
-      await _saveAddendum();
-    }
+    _saveDebounce?.cancel();
+    await _save();
     return true;
   }
 
@@ -212,12 +150,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       );
     }
 
-    final isDraft = note.status == NoteStatus.draft;
     final text = Theme.of(context).textTheme;
     final title = _client == null ? 'SOAP note' : clientDisplayName(_client!);
-    final when = _appointment != null
-        ? formatApptWhen(_appointment!.startsAt)
-        : formatNoteDate(note.noteDate);
+    final when = formatNoteDate(_appointment?.startsAt ?? note.noteDate);
 
     return PopScope(
       canPop: false,
@@ -243,13 +178,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                     ),
                   ),
                 ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.only(right: PelviSpace.sm),
-                child: Center(
-                  child: _StatusChip(status: note.status),
-                ),
               ),
           ],
         ),
@@ -260,81 +188,54 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               when,
               style: text.bodyMedium?.copyWith(color: PelviColors.inkMuted),
             ),
-            if (isDraft) ...[
-              const SizedBox(height: PelviSpace.sm),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: _copyLastNote,
-                  style: TextButton.styleFrom(
-                    foregroundColor: PelviColors.purple700,
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: const Text('Copy last note'),
+            const SizedBox(height: PelviSpace.sm),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: _copyLastNote,
+                style: TextButton.styleFrom(
+                  foregroundColor: PelviColors.purple700,
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
+                child: const Text('Copy last note'),
               ),
-            ],
+            ),
             const SizedBox(height: PelviSpace.md),
             _SoapField(
-              letter: 'S',
+              icon: Icons.hearing_outlined,
               label: 'Subjective',
               controller: _subjective,
-              readOnly: !isDraft,
-              onChanged: (_) => _scheduleDraftSave(),
+              onChanged: (_) => _scheduleSave(),
             ),
             const SizedBox(height: PelviSpace.lg),
             _SoapField(
-              letter: 'O',
+              icon: Icons.visibility_outlined,
               label: 'Objective',
               controller: _objective,
-              readOnly: !isDraft,
-              onChanged: (_) => _scheduleDraftSave(),
+              onChanged: (_) => _scheduleSave(),
             ),
             const SizedBox(height: PelviSpace.lg),
             _SoapField(
-              letter: 'A',
+              icon: Icons.psychology_outlined,
               label: 'Assessment',
               controller: _assessment,
-              readOnly: !isDraft,
-              onChanged: (_) => _scheduleDraftSave(),
+              onChanged: (_) => _scheduleSave(),
             ),
             const SizedBox(height: PelviSpace.lg),
             _SoapField(
-              letter: 'P',
+              icon: Icons.checklist_rtl,
               label: 'Plan',
               controller: _plan,
-              readOnly: !isDraft,
-              onChanged: (_) => _scheduleDraftSave(),
+              onChanged: (_) => _scheduleSave(),
             ),
-            if (!isDraft) ...[
-              const SizedBox(height: PelviSpace.lg),
-              Text('ADDENDUM', style: text.labelMedium),
-              const SizedBox(height: PelviSpace.xs),
-              TextField(
-                controller: _addendum,
-                minLines: 3,
-                maxLines: 8,
-                onChanged: (_) => _scheduleAddendumSave(),
-                decoration: const InputDecoration(
-                  hintText: 'Append a correction or update…',
-                ),
-              ),
-            ],
-            if (isDraft) ...[
-              const SizedBox(height: PelviSpace.xl),
-              FilledButton(
-                onPressed: _finalize,
-                child: const Text('Finalize'),
-              ),
-              const SizedBox(height: PelviSpace.sm),
-              Text(
-                'Drafts save on this device automatically.',
-                textAlign: TextAlign.center,
-                style: text.labelMedium,
-              ),
-            ],
+            const SizedBox(height: PelviSpace.md),
+            Text(
+              'Saves on this device automatically.',
+              textAlign: TextAlign.center,
+              style: text.labelMedium,
+            ),
             const SizedBox(height: PelviSpace.xxl),
           ],
         ),
@@ -343,48 +244,17 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-
-  final NoteStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDraft = status == NoteStatus.draft;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: PelviSpace.sm,
-        vertical: PelviSpace.xs,
-      ),
-      decoration: BoxDecoration(
-        color: isDraft ? PelviColors.purple50 : PelviColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(PelviRadius.sm),
-        border: Border.all(color: PelviColors.border),
-      ),
-      child: Text(
-        noteStatusLabel(status),
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: isDraft ? PelviColors.purple700 : PelviColors.success,
-              fontWeight: FontWeight.w600,
-            ),
-      ),
-    );
-  }
-}
-
 class _SoapField extends StatelessWidget {
   const _SoapField({
-    required this.letter,
+    required this.icon,
     required this.label,
     required this.controller,
-    required this.readOnly,
     required this.onChanged,
   });
 
-  final String letter;
+  final IconData icon;
   final String label;
   final TextEditingController controller;
-  final bool readOnly;
   final ValueChanged<String> onChanged;
 
   @override
@@ -395,32 +265,7 @@ class _SoapField extends StatelessWidget {
       children: [
         Row(
           children: [
-            Container(
-              width: 28,
-              height: 28,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: PelviColors.purple50,
-                borderRadius: BorderRadius.circular(PelviRadius.sm),
-                border: Border.all(color: PelviColors.purple700, width: 1.5),
-              ),
-              child: Text(
-                letter,
-                style: text.labelLarge?.copyWith(
-                  color: PelviColors.purple700,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-            const SizedBox(width: PelviSpace.sm),
-            Container(
-              width: 3,
-              height: 16,
-              decoration: BoxDecoration(
-                color: PelviColors.purple700,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            Icon(icon, size: 22, color: PelviColors.purple700),
             const SizedBox(width: PelviSpace.sm),
             Text(
               label.toUpperCase(),
@@ -434,17 +279,13 @@ class _SoapField extends StatelessWidget {
         const SizedBox(height: PelviSpace.sm),
         TextField(
           controller: controller,
-          readOnly: readOnly,
           minLines: 3,
           maxLines: 8,
-          onChanged: readOnly ? null : onChanged,
-          style: text.bodyLarge?.copyWith(
-            color: readOnly ? PelviColors.ink : PelviColors.ink,
-          ),
-          decoration: InputDecoration(
+          onChanged: onChanged,
+          style: text.bodyLarge?.copyWith(color: PelviColors.ink),
+          decoration: const InputDecoration(
             filled: true,
-            fillColor:
-                readOnly ? PelviColors.surfaceMuted : PelviColors.surface,
+            fillColor: PelviColors.surface,
           ),
         ),
       ],
