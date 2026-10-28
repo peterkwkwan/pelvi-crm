@@ -6,6 +6,7 @@ import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/picker_sheet.dart';
 import '../clients/client_format.dart';
+import '../notes/open_note.dart';
 
 /// Next whole hour for a new appointment (12:48 → 13:00; on the hour → that hour).
 TimeOfDay nextWholeHour([DateTime? now]) {
@@ -122,12 +123,38 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
     setState(() => _saving = true);
     final db = AppDatabaseProvider.of(context);
     try {
-      await db.insertAppointment(
+      final apptId = await db.insertAppointment(
         clientId: clientId,
         startsAt: _startsAt,
         status: _status,
       );
       if (!mounted) return;
+      final startNote = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Start a SOAP note for this visit?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Yes'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      if (startNote == true) {
+        await openNoteForAppointment(
+          context,
+          appointmentId: apptId,
+          clientId: clientId,
+          noteDate: _startsAt,
+        );
+        if (!mounted) return;
+      }
       Navigator.of(context).pop();
     } on AppointmentConflictException catch (e) {
       if (!mounted) return;
