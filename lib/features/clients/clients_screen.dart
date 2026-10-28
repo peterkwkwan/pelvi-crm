@@ -205,36 +205,45 @@ class _RecentStrip extends StatelessWidget {
           ),
           child: Text('RECENT', style: text.labelMedium),
         ),
-        SizedBox(
-          height: 40,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: PelviSpace.md),
-            itemCount: clients.length,
-            separatorBuilder: (_, __) => const SizedBox(width: PelviSpace.sm),
-            itemBuilder: (context, index) {
-              final c = clients[index];
-              return OutlinedButton(
-                onPressed: () => onTap(c.id),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: PelviColors.ink,
-                  side: const BorderSide(color: PelviColors.border),
-                  backgroundColor: PelviColors.surface,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: PelviSpace.md,
-                  ),
-                  minimumSize: const Size(0, 36),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(PelviRadius.md),
-                  ),
+        // Two chip rows (36) + gap; ClipRect hides anything that would need a 3rd.
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: PelviSpace.md),
+          child: ClipRect(
+            child: SizedBox(
+              height: 36 * 2 + PelviSpace.sm,
+              width: double.infinity,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Wrap(
+                  spacing: PelviSpace.sm,
+                  runSpacing: PelviSpace.sm,
+                  children: [
+                    for (final c in clients)
+                      OutlinedButton(
+                        onPressed: () => onTap(c.id),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: PelviColors.ink,
+                          side: const BorderSide(color: PelviColors.border),
+                          backgroundColor: PelviColors.surface,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: PelviSpace.md,
+                          ),
+                          minimumSize: const Size(0, 36),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(PelviRadius.md),
+                          ),
+                        ),
+                        child: Text(
+                          clientDisplayName(c),
+                          style: text.labelLarge,
+                        ),
+                      ),
+                  ],
                 ),
-                child: Text(
-                  clientDisplayName(c),
-                  style: text.labelLarge,
-                ),
-              );
-            },
+              ),
+            ),
           ),
         ),
         const SizedBox(height: PelviSpace.md),
