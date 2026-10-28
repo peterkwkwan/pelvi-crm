@@ -30,6 +30,9 @@ class ClientsScreen extends StatelessWidget {
           IconButton(
             tooltip: 'Add client',
             onPressed: () => _openNew(context),
+            style: IconButton.styleFrom(
+              foregroundColor: PelviColors.pink700,
+            ),
             icon: const Icon(Icons.person_add_outlined),
           ),
           const SizedBox(width: PelviSpace.sm),
