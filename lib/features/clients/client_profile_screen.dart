@@ -180,8 +180,6 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                     ),
                     if (client.notes != null && client.notes!.isNotEmpty) ...[
                       const SizedBox(height: PelviSpace.lg),
-                      const Divider(height: 1),
-                      const SizedBox(height: PelviSpace.lg),
                       Text('NOTES', style: text.labelMedium),
                       const SizedBox(height: PelviSpace.sm),
                       ConstrainedBox(
