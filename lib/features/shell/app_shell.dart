@@ -44,18 +44,58 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-class _CenterFab extends StatelessWidget {
+class _CenterFab extends StatefulWidget {
   const _CenterFab({required this.onPressed});
 
   final VoidCallback onPressed;
 
   @override
+  State<_CenterFab> createState() => _CenterFabState();
+}
+
+class _CenterFabState extends State<_CenterFab>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+  late final Animation<double> _scale;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    );
+    final curve = CurvedAnimation(parent: _pulse, curve: Curves.easeInOut);
+    _scale = Tween(begin: 1.0, end: 1.04).animate(curve);
+    _opacity = Tween(begin: 1.0, end: 0.88).animate(curve);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    if (reduce) {
+      _pulse.stop();
+      _pulse.value = 0;
+    } else if (!_pulse.isAnimating) {
+      _pulse.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    final fab = SizedBox(
       width: 60,
       height: 60,
       child: FloatingActionButton(
-        onPressed: onPressed,
+        onPressed: widget.onPressed,
         elevation: 0,
         focusElevation: 0,
         hoverElevation: 0,
@@ -67,6 +107,13 @@ class _CenterFab extends StatelessWidget {
         ),
         child: const Icon(Icons.add, size: 28),
       ),
+    );
+
+    if (MediaQuery.disableAnimationsOf(context)) return fab;
+
+    return FadeTransition(
+      opacity: _opacity,
+      child: ScaleTransition(scale: _scale, child: fab),
     );
   }
 }
