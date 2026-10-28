@@ -7,6 +7,7 @@ import 'package:pelvi_crm/data/database.dart';
 import 'package:pelvi_crm/data/database_provider.dart';
 import 'package:pelvi_crm/data/sync_stub.dart';
 import 'package:pelvi_crm/features/appointments/appointment_form_screen.dart';
+import 'package:pelvi_crm/features/calendar/calendar_screen.dart';
 import 'package:pelvi_crm/features/notes/note_editor_screen.dart';
 import 'package:pelvi_crm/features/notes/note_format.dart';
 import 'package:pelvi_crm/features/notes/soap_dictation.dart';
@@ -184,6 +185,70 @@ void main() {
     final today = await db.watchAppointmentsWithClientOnDay(starts).first;
     expect(today, hasLength(1));
     expect(today.first.client.lastName, 'Lovelace');
+  });
+
+  test('month appointment counts group by local day', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final clientId = await db.insertClient(
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+    );
+    await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 10, 28, 9),
+    );
+    await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 10, 28, 14),
+    );
+    await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 10, 29, 10),
+    );
+    await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 11, 1, 10),
+    );
+
+    final counts =
+        await db.watchAppointmentCountsForMonth(DateTime(2026, 10)).first;
+    expect(counts[DateTime(2026, 10, 28)], 2);
+    expect(counts[DateTime(2026, 10, 29)], 1);
+    expect(counts.containsKey(DateTime(2026, 11, 1)), isFalse);
+  });
+
+  testWidgets('Calendar tab shows month grid and day list', (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final clientId = await db.insertClient(
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+    );
+    final now = DateTime.now();
+    await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(now.year, now.month, now.day, 10),
+    );
+
+    await tester.pumpWidget(
+      AppDatabaseProvider(
+        database: db,
+        syncEngine: const StubSyncEngine(),
+        child: const MaterialApp(home: CalendarScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Tap a day to see appointments'), findsOneWidget);
+    expect(find.text('Ada Lovelace'), findsOneWidget);
+    expect(find.text('Add'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 50));
   });
 
   test('SOAP stays editable; copy last is same-client only', () async {

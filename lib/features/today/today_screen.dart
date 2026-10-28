@@ -4,9 +4,8 @@ import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/empty_state.dart';
+import '../appointments/appointment_agenda_row.dart';
 import '../appointments/appointment_form_screen.dart';
-import '../clients/client_format.dart';
-import '../notes/open_note.dart';
 
 class TodayScreen extends StatelessWidget {
   const TodayScreen({super.key});
@@ -176,86 +175,12 @@ class _TodayAgendaListState extends State<_TodayAgendaList> {
       itemBuilder: (context, index) {
         final row = widget.rows[index];
         final appt = row.appointment;
-        final client = row.client;
         final past = appt.startsAt.isBefore(now);
-        final ink = past ? PelviColors.inkMuted : PelviColors.ink;
-        final decoration =
-            past ? TextDecoration.lineThrough : TextDecoration.none;
-        final text = Theme.of(context).textTheme;
 
-        Widget child = InkWell(
-          onTap: () {
-            openNoteForAppointment(
-              context,
-              appointmentId: appt.id,
-              clientId: client.id,
-              noteDate: appt.startsAt,
-            );
-          },
-          splashColor: PelviColors.surfaceMuted,
-          highlightColor: PelviColors.surfaceMuted,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: PelviSpace.md,
-              vertical: PelviSpace.sm + 4,
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 56),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 56,
-                    child: Text(
-                      formatApptTime(appt.startsAt),
-                      style: text.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: ink,
-                        decoration: decoration,
-                        decorationColor: ink,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          clientDisplayName(client),
-                          style: text.labelLarge?.copyWith(
-                            color: ink,
-                            decoration: decoration,
-                            decorationColor: ink,
-                          ),
-                        ),
-                        Text.rich(
-                          TextSpan(
-                            style: text.labelMedium?.copyWith(
-                              color: PelviColors.inkMuted,
-                            ),
-                            children: [
-                              TextSpan(
-                                text: appointmentStatusLabel(appt.status),
-                                style: TextStyle(
-                                  color: appointmentStatusColor(appt.status),
-                                ),
-                              ),
-                              const TextSpan(text: ' · Note'),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    Icons.notes_outlined,
-                    color: past ? PelviColors.inkMuted : PelviColors.purple700,
-                    size: 20,
-                  ),
-                ],
-              ),
-            ),
-          ),
+        Widget child = AppointmentAgendaRow(
+          appointment: appt,
+          client: row.client,
+          past: past,
         );
 
         if (index == upcomingIndex) {

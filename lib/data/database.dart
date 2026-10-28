@@ -258,6 +258,27 @@ class AppDatabase extends _$AppDatabase {
         );
   }
 
+  /// Per-day appointment counts for [month] (any day in that calendar month).
+  Stream<Map<DateTime, int>> watchAppointmentCountsForMonth(DateTime month) {
+    final start = DateTime(month.year, month.month);
+    final end = DateTime(month.year, month.month + 1);
+    return (select(appointments)
+          ..where(
+            (t) =>
+                t.startsAt.isBiggerOrEqualValue(start) &
+                t.startsAt.isSmallerThanValue(end),
+          ))
+        .watch()
+        .map((rows) {
+          final counts = <DateTime, int>{};
+          for (final a in rows) {
+            final d = DateTime(a.startsAt.year, a.startsAt.month, a.startsAt.day);
+            counts[d] = (counts[d] ?? 0) + 1;
+          }
+          return counts;
+        });
+  }
+
   /// First overlapping appointment in the solo book, if any.
   ///
   /// shortcut: scans all rows, upgrade when diary is large
