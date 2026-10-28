@@ -52,6 +52,8 @@ class Notes extends Table {
   TextColumn get objective => text().withDefault(const Constant(''))();
   TextColumn get assessment => text().withDefault(const Constant(''))();
   TextColumn get plan => text().withDefault(const Constant(''))();
+  /// Append-only after finalize; S/O/A/P stay locked.
+  TextColumn get addendum => text().withDefault(const Constant(''))();
   IntColumn get status =>
       intEnum<NoteStatus>().withDefault(Constant(NoteStatus.draft.index))();
   DateTimeColumn get finalizedAt => dateTime().nullable()();
@@ -74,7 +76,17 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.addColumn(notes, notes.addendum);
+          }
+        },
+      );
 
   static const practitionerNameKey = 'practitioner_name';
   static const recallDaysKey = 'recall_days';
@@ -216,6 +228,132 @@ class AppDatabase extends _$AppDatabase {
         status: Value(status),
       ),
     );
+  }
+
+  Future<Appointment?> getAppointment(int id) {
+    return (select(appointments)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  Stream<Note?> watchNote(int id) {
+    return (select(notes)..where((t) => t.id.equals(id)))
+        .watch()
+        .map((rows) => rows.isEmpty ? null : rows.first);
+  }
+
+  Future<Note?> getNote(int id) {
+    return (select(notes)..where((t) => t.id.equals(id))).getSingleOrNull();
+  }
+
+  Future<Note?> getNoteForAppointment(int appointmentId) {
+    return (select(notes)..where((t) => t.appointmentId.equals(appointmentId)))
+        .getSingleOrNull();
+  }
+
+  /// Visit history: notes for a client, newest first.
+  Stream<List<Note>> watchNotesForClient(int clientId) {
+    return (select(notes)
+          ..where((t) => t.clientId.equals(clientId))
+          ..orderBy([(t) => OrderingTerm.desc(t.noteDate)]))
+        .watch();
+  }
+
+  /// Most recent note for [clientId], excluding [exceptNoteId] when set.
+  Future<Note?> getLastNoteForClient(int clientId, {int? exceptNoteId}) async {
+    final query = select(notes)
+      ..where((t) => t.clientId.equals(clientId))
+      ..orderBy([(t) => OrderingTerm.desc(t.noteDate)])
+      ..limit(5);
+    final rows = await query.get();
+    for (final n in rows) {
+      if (exceptNoteId != null && n.id == exceptNoteId) continue;
+      return n;
+    }
+    return null;
+  }
+
+  /// Open existing note for the appointment, or create a draft.
+  Future<Note> getOrCreateNoteForAppointment({
+    required int appointmentId,
+    required int clientId,
+    DateTime? noteDate,
+  }) async {
+    final existing = await getNoteForAppointment(appointmentId);
+    if (existing != null) return existing;
+    final id = await into(notes).insert(
+      NotesCompanion.insert(
+        clientId: clientId,
+        appointmentId: Value(appointmentId),
+        noteDate: noteDate ?? DateTime.now(),
+      ),
+    );
+    return (await getNote(id))!;
+  }
+
+  Future<void> updateNoteDraft({
+    required int id,
+    required String subjective,
+    required String objective,
+    required String assessment,
+    required String plan,
+  }) async {
+    final note = await getNote(id);
+    if (note == null || note.status != NoteStatus.draft) return;
+    await (update(notes)..where((t) => t.id.equals(id))).write(
+      NotesCompanion(
+        subjective: Value(subjective),
+        objective: Value(objective),
+        assessment: Value(assessment),
+        plan: Value(plan),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<bool> finalizeNote(int id) async {
+    final note = await getNote(id);
+    if (note == null || note.status != NoteStatus.draft) return false;
+    final n = await (update(notes)..where((t) => t.id.equals(id))).write(
+      NotesCompanion(
+        status: const Value(NoteStatus.finalized),
+        finalizedAt: Value(DateTime.now()),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+    return n > 0;
+  }
+
+  Future<void> updateNoteAddendum({
+    required int id,
+    required String addendum,
+  }) async {
+    final note = await getNote(id);
+    if (note == null || note.status != NoteStatus.finalized) return;
+    await (update(notes)..where((t) => t.id.equals(id))).write(
+      NotesCompanion(
+        addendum: Value(addendum),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Copy S/O/A/P from [source] into a draft [targetId]. No-op if not draft.
+  Future<bool> copySoapIntoDraft({
+    required int targetId,
+    required Note source,
+  }) async {
+    final target = await getNote(targetId);
+    if (target == null || target.status != NoteStatus.draft) return false;
+    await (update(notes)..where((t) => t.id.equals(targetId))).write(
+      NotesCompanion(
+        subjective: Value(source.subjective),
+        objective: Value(source.objective),
+        assessment: Value(source.assessment),
+        plan: Value(source.plan),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+    return true;
   }
 
   static String? _blankToNull(String? value) {

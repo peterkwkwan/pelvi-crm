@@ -1219,6 +1219,18 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, Note> {
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _addendumMeta = const VerificationMeta(
+    'addendum',
+  );
+  @override
+  late final GeneratedColumn<String> addendum = GeneratedColumn<String>(
+    'addendum',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   @override
   late final GeneratedColumnWithTypeConverter<NoteStatus, int> status =
       GeneratedColumn<int>(
@@ -1274,6 +1286,7 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, Note> {
     objective,
     assessment,
     plan,
+    addendum,
     status,
     finalizedAt,
     createdAt,
@@ -1343,6 +1356,12 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, Note> {
         plan.isAcceptableOrUnknown(data['plan']!, _planMeta),
       );
     }
+    if (data.containsKey('addendum')) {
+      context.handle(
+        _addendumMeta,
+        addendum.isAcceptableOrUnknown(data['addendum']!, _addendumMeta),
+      );
+    }
     if (data.containsKey('finalized_at')) {
       context.handle(
         _finalizedAtMeta,
@@ -1405,6 +1424,10 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, Note> {
         DriftSqlType.string,
         data['${effectivePrefix}plan'],
       )!,
+      addendum: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}addendum'],
+      )!,
       status: $NotesTable.$converterstatus.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.int,
@@ -1444,6 +1467,9 @@ class Note extends DataClass implements Insertable<Note> {
   final String objective;
   final String assessment;
   final String plan;
+
+  /// Append-only after finalize; S/O/A/P stay locked.
+  final String addendum;
   final NoteStatus status;
   final DateTime? finalizedAt;
   final DateTime createdAt;
@@ -1457,6 +1483,7 @@ class Note extends DataClass implements Insertable<Note> {
     required this.objective,
     required this.assessment,
     required this.plan,
+    required this.addendum,
     required this.status,
     this.finalizedAt,
     required this.createdAt,
@@ -1475,6 +1502,7 @@ class Note extends DataClass implements Insertable<Note> {
     map['objective'] = Variable<String>(objective);
     map['assessment'] = Variable<String>(assessment);
     map['plan'] = Variable<String>(plan);
+    map['addendum'] = Variable<String>(addendum);
     {
       map['status'] = Variable<int>($NotesTable.$converterstatus.toSql(status));
     }
@@ -1498,6 +1526,7 @@ class Note extends DataClass implements Insertable<Note> {
       objective: Value(objective),
       assessment: Value(assessment),
       plan: Value(plan),
+      addendum: Value(addendum),
       status: Value(status),
       finalizedAt: finalizedAt == null && nullToAbsent
           ? const Value.absent()
@@ -1521,6 +1550,7 @@ class Note extends DataClass implements Insertable<Note> {
       objective: serializer.fromJson<String>(json['objective']),
       assessment: serializer.fromJson<String>(json['assessment']),
       plan: serializer.fromJson<String>(json['plan']),
+      addendum: serializer.fromJson<String>(json['addendum']),
       status: $NotesTable.$converterstatus.fromJson(
         serializer.fromJson<int>(json['status']),
       ),
@@ -1541,6 +1571,7 @@ class Note extends DataClass implements Insertable<Note> {
       'objective': serializer.toJson<String>(objective),
       'assessment': serializer.toJson<String>(assessment),
       'plan': serializer.toJson<String>(plan),
+      'addendum': serializer.toJson<String>(addendum),
       'status': serializer.toJson<int>(
         $NotesTable.$converterstatus.toJson(status),
       ),
@@ -1559,6 +1590,7 @@ class Note extends DataClass implements Insertable<Note> {
     String? objective,
     String? assessment,
     String? plan,
+    String? addendum,
     NoteStatus? status,
     Value<DateTime?> finalizedAt = const Value.absent(),
     DateTime? createdAt,
@@ -1574,6 +1606,7 @@ class Note extends DataClass implements Insertable<Note> {
     objective: objective ?? this.objective,
     assessment: assessment ?? this.assessment,
     plan: plan ?? this.plan,
+    addendum: addendum ?? this.addendum,
     status: status ?? this.status,
     finalizedAt: finalizedAt.present ? finalizedAt.value : this.finalizedAt,
     createdAt: createdAt ?? this.createdAt,
@@ -1595,6 +1628,7 @@ class Note extends DataClass implements Insertable<Note> {
           ? data.assessment.value
           : this.assessment,
       plan: data.plan.present ? data.plan.value : this.plan,
+      addendum: data.addendum.present ? data.addendum.value : this.addendum,
       status: data.status.present ? data.status.value : this.status,
       finalizedAt: data.finalizedAt.present
           ? data.finalizedAt.value
@@ -1615,6 +1649,7 @@ class Note extends DataClass implements Insertable<Note> {
           ..write('objective: $objective, ')
           ..write('assessment: $assessment, ')
           ..write('plan: $plan, ')
+          ..write('addendum: $addendum, ')
           ..write('status: $status, ')
           ..write('finalizedAt: $finalizedAt, ')
           ..write('createdAt: $createdAt, ')
@@ -1633,6 +1668,7 @@ class Note extends DataClass implements Insertable<Note> {
     objective,
     assessment,
     plan,
+    addendum,
     status,
     finalizedAt,
     createdAt,
@@ -1650,6 +1686,7 @@ class Note extends DataClass implements Insertable<Note> {
           other.objective == this.objective &&
           other.assessment == this.assessment &&
           other.plan == this.plan &&
+          other.addendum == this.addendum &&
           other.status == this.status &&
           other.finalizedAt == this.finalizedAt &&
           other.createdAt == this.createdAt &&
@@ -1665,6 +1702,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
   final Value<String> objective;
   final Value<String> assessment;
   final Value<String> plan;
+  final Value<String> addendum;
   final Value<NoteStatus> status;
   final Value<DateTime?> finalizedAt;
   final Value<DateTime> createdAt;
@@ -1678,6 +1716,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
     this.objective = const Value.absent(),
     this.assessment = const Value.absent(),
     this.plan = const Value.absent(),
+    this.addendum = const Value.absent(),
     this.status = const Value.absent(),
     this.finalizedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1692,6 +1731,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
     this.objective = const Value.absent(),
     this.assessment = const Value.absent(),
     this.plan = const Value.absent(),
+    this.addendum = const Value.absent(),
     this.status = const Value.absent(),
     this.finalizedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1707,6 +1747,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
     Expression<String>? objective,
     Expression<String>? assessment,
     Expression<String>? plan,
+    Expression<String>? addendum,
     Expression<int>? status,
     Expression<DateTime>? finalizedAt,
     Expression<DateTime>? createdAt,
@@ -1721,6 +1762,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
       if (objective != null) 'objective': objective,
       if (assessment != null) 'assessment': assessment,
       if (plan != null) 'plan': plan,
+      if (addendum != null) 'addendum': addendum,
       if (status != null) 'status': status,
       if (finalizedAt != null) 'finalized_at': finalizedAt,
       if (createdAt != null) 'created_at': createdAt,
@@ -1737,6 +1779,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
     Value<String>? objective,
     Value<String>? assessment,
     Value<String>? plan,
+    Value<String>? addendum,
     Value<NoteStatus>? status,
     Value<DateTime?>? finalizedAt,
     Value<DateTime>? createdAt,
@@ -1751,6 +1794,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
       objective: objective ?? this.objective,
       assessment: assessment ?? this.assessment,
       plan: plan ?? this.plan,
+      addendum: addendum ?? this.addendum,
       status: status ?? this.status,
       finalizedAt: finalizedAt ?? this.finalizedAt,
       createdAt: createdAt ?? this.createdAt,
@@ -1785,6 +1829,9 @@ class NotesCompanion extends UpdateCompanion<Note> {
     if (plan.present) {
       map['plan'] = Variable<String>(plan.value);
     }
+    if (addendum.present) {
+      map['addendum'] = Variable<String>(addendum.value);
+    }
     if (status.present) {
       map['status'] = Variable<int>(
         $NotesTable.$converterstatus.toSql(status.value),
@@ -1813,6 +1860,7 @@ class NotesCompanion extends UpdateCompanion<Note> {
           ..write('objective: $objective, ')
           ..write('assessment: $assessment, ')
           ..write('plan: $plan, ')
+          ..write('addendum: $addendum, ')
           ..write('status: $status, ')
           ..write('finalizedAt: $finalizedAt, ')
           ..write('createdAt: $createdAt, ')
@@ -2998,6 +3046,7 @@ typedef $$NotesTableCreateCompanionBuilder =
       Value<String> objective,
       Value<String> assessment,
       Value<String> plan,
+      Value<String> addendum,
       Value<NoteStatus> status,
       Value<DateTime?> finalizedAt,
       Value<DateTime> createdAt,
@@ -3013,6 +3062,7 @@ typedef $$NotesTableUpdateCompanionBuilder =
       Value<String> objective,
       Value<String> assessment,
       Value<String> plan,
+      Value<String> addendum,
       Value<NoteStatus> status,
       Value<DateTime?> finalizedAt,
       Value<DateTime> createdAt,
@@ -3095,6 +3145,11 @@ class $$NotesTableFilterComposer extends Composer<_$AppDatabase, $NotesTable> {
 
   ColumnFilters<String> get plan => $composableBuilder(
     column: $table.plan,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get addendum => $composableBuilder(
+    column: $table.addendum,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3205,6 +3260,11 @@ class $$NotesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get addendum => $composableBuilder(
+    column: $table.addendum,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get status => $composableBuilder(
     column: $table.status,
     builder: (column) => ColumnOrderings(column),
@@ -3303,6 +3363,9 @@ class $$NotesTableAnnotationComposer
   GeneratedColumn<String> get plan =>
       $composableBuilder(column: $table.plan, builder: (column) => column);
 
+  GeneratedColumn<String> get addendum =>
+      $composableBuilder(column: $table.addendum, builder: (column) => column);
+
   GeneratedColumnWithTypeConverter<NoteStatus, int> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
 
@@ -3400,6 +3463,7 @@ class $$NotesTableTableManager
                 Value<String> objective = const Value.absent(),
                 Value<String> assessment = const Value.absent(),
                 Value<String> plan = const Value.absent(),
+                Value<String> addendum = const Value.absent(),
                 Value<NoteStatus> status = const Value.absent(),
                 Value<DateTime?> finalizedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -3413,6 +3477,7 @@ class $$NotesTableTableManager
                 objective: objective,
                 assessment: assessment,
                 plan: plan,
+                addendum: addendum,
                 status: status,
                 finalizedAt: finalizedAt,
                 createdAt: createdAt,
@@ -3428,6 +3493,7 @@ class $$NotesTableTableManager
                 Value<String> objective = const Value.absent(),
                 Value<String> assessment = const Value.absent(),
                 Value<String> plan = const Value.absent(),
+                Value<String> addendum = const Value.absent(),
                 Value<NoteStatus> status = const Value.absent(),
                 Value<DateTime?> finalizedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -3441,6 +3507,7 @@ class $$NotesTableTableManager
                 objective: objective,
                 assessment: assessment,
                 plan: plan,
+                addendum: addendum,
                 status: status,
                 finalizedAt: finalizedAt,
                 createdAt: createdAt,

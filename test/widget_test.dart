@@ -80,4 +80,75 @@ void main() {
     expect(today, hasLength(1));
     expect(today.first.client.lastName, 'Lovelace');
   });
+
+  test('SOAP draft finalize locks fields; addendum and copy last', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final clientId = await db.insertClient(
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+    );
+    final appt1 = await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 10, 1, 10),
+    );
+    final appt2 = await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 10, 28, 10),
+    );
+
+    final first = await db.getOrCreateNoteForAppointment(
+      appointmentId: appt1,
+      clientId: clientId,
+      noteDate: DateTime(2026, 10, 1, 10),
+    );
+    await db.updateNoteDraft(
+      id: first.id,
+      subjective: 'pain',
+      objective: 'ROM limited',
+      assessment: 'strain',
+      plan: 'ice',
+    );
+    expect(await db.finalizeNote(first.id), isTrue);
+
+    // Finalized: draft write is a no-op.
+    await db.updateNoteDraft(
+      id: first.id,
+      subjective: 'rewritten',
+      objective: 'x',
+      assessment: 'x',
+      plan: 'x',
+    );
+    final locked = await db.getNote(first.id);
+    expect(locked?.status, NoteStatus.finalized);
+    expect(locked?.subjective, 'pain');
+
+    await db.updateNoteAddendum(id: first.id, addendum: 'follow-up ok');
+    expect((await db.getNote(first.id))?.addendum, 'follow-up ok');
+
+    final second = await db.getOrCreateNoteForAppointment(
+      appointmentId: appt2,
+      clientId: clientId,
+      noteDate: DateTime(2026, 10, 28, 10),
+    );
+    expect(second.status, NoteStatus.draft);
+    expect(
+      await db.copySoapIntoDraft(targetId: second.id, source: locked!),
+      isTrue,
+    );
+    final copied = await db.getNote(second.id);
+    expect(copied?.subjective, 'pain');
+    expect(copied?.plan, 'ice');
+
+    // Same appointment reopens the same note.
+    final again = await db.getOrCreateNoteForAppointment(
+      appointmentId: appt2,
+      clientId: clientId,
+    );
+    expect(again.id, second.id);
+
+    final history = await db.watchNotesForClient(clientId).first;
+    expect(history, hasLength(2));
+  });
 }

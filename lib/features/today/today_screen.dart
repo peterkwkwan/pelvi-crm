@@ -5,7 +5,7 @@ import '../../theme/theme.dart';
 import '../../widgets/empty_state.dart';
 import '../appointments/appointment_form_screen.dart';
 import '../clients/client_format.dart';
-import '../clients/client_profile_screen.dart';
+import '../notes/open_note.dart';
 
 class TodayScreen extends StatelessWidget {
   const TodayScreen({super.key});
@@ -92,11 +92,11 @@ class TodayScreen extends StatelessWidget {
               final client = row.client;
               return InkWell(
                 onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) =>
-                          ClientProfileScreen(clientId: client.id),
-                    ),
+                  openNoteForAppointment(
+                    context,
+                    appointmentId: appt.id,
+                    clientId: client.id,
+                    noteDate: appt.startsAt,
                   );
                 },
                 splashColor: PelviColors.surfaceMuted,
@@ -130,7 +130,7 @@ class TodayScreen extends StatelessWidget {
                                 style: Theme.of(context).textTheme.labelLarge,
                               ),
                               Text(
-                                appointmentStatusLabel(appt.status),
+                                '${appointmentStatusLabel(appt.status)} · Note',
                                 style:
                                     Theme.of(context).textTheme.labelMedium,
                               ),
@@ -138,8 +138,8 @@ class TodayScreen extends StatelessWidget {
                           ),
                         ),
                         const Icon(
-                          Icons.chevron_right,
-                          color: PelviColors.inkMuted,
+                          Icons.notes_outlined,
+                          color: PelviColors.purple700,
                           size: 20,
                         ),
                       ],

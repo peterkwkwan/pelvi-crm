@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../theme/theme.dart';
 import '../appointments/appointment_form_screen.dart';
 import '../clients/client_form_screen.dart';
-import '../placeholders/stub_screens.dart';
+import '../notes/open_note.dart';
 
 /// FAB quick-add sheet: Client / Appointment / Note.
 Future<void> showQuickAddSheet(BuildContext context) {
@@ -26,6 +26,16 @@ class QuickAddSheet extends StatelessWidget {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => screen),
     );
+  }
+
+  void _openNote(BuildContext context) {
+    final nav = Navigator.of(context);
+    nav.pop();
+    // After sheet closes, pick client/appointment then open editor.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = nav.context;
+      if (ctx.mounted) openNoteViaPickers(ctx);
+    });
   }
 
   @override
@@ -84,13 +94,7 @@ class QuickAddSheet extends StatelessWidget {
               icon: Icons.notes_outlined,
               title: 'Note',
               subtitle: 'Start a SOAP draft',
-              onTap: () => _open(
-                context,
-                const StubScreen(
-                  title: 'New note',
-                  body: 'SOAP editor comes after clients & appointments.',
-                ),
-              ),
+              onTap: () => _openNote(context),
             ),
           ],
         ),
