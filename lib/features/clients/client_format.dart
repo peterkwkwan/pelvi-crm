@@ -14,13 +14,13 @@ String appointmentStatusLabel(AppointmentStatus status) {
   };
 }
 
-/// Status word color only — pink / purple / muted / danger.
+/// Status word color only — light/dark pink, purple, muted.
 Color appointmentStatusColor(AppointmentStatus status) {
   return switch (status) {
-    AppointmentStatus.scheduled => PelviColors.pink700,
-    AppointmentStatus.completed => PelviColors.purple700,
+    AppointmentStatus.scheduled => PelviColors.pink400,
+    AppointmentStatus.completed => PelviColors.pink700,
     AppointmentStatus.cancelled => PelviColors.inkMuted,
-    AppointmentStatus.noShow => PelviColors.danger,
+    AppointmentStatus.noShow => PelviColors.purple700,
   };
 }
 
