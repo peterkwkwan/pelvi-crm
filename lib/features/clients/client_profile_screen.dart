@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
@@ -9,6 +10,36 @@ import '../notes/note_format.dart';
 import '../notes/open_note.dart';
 import 'client_form_screen.dart';
 import 'client_format.dart';
+
+Future<void> _launchExternal(Uri uri) async {
+  await launchUrl(uri, mode: LaunchMode.externalApplication);
+}
+
+Future<void> _onPhoneTap(BuildContext context, String phone) async {
+  final choice = await showDialog<String>(
+    context: context,
+    builder: (ctx) => SimpleDialog(
+      title: const Text('Phone'),
+      children: [
+        SimpleDialogOption(
+          onPressed: () => Navigator.pop(ctx, 'call'),
+          child: const Text('Phone call'),
+        ),
+        SimpleDialogOption(
+          onPressed: () => Navigator.pop(ctx, 'whatsapp'),
+          child: const Text('WhatsApp'),
+        ),
+      ],
+    ),
+  );
+  if (choice == null) return;
+  if (choice == 'call') {
+    await _launchExternal(Uri(scheme: 'tel', path: phone));
+  } else {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    await _launchExternal(Uri.parse('https://wa.me/$digits'));
+  }
+}
 
 class ClientProfileScreen extends StatelessWidget {
   const ClientProfileScreen({super.key, required this.clientId});
@@ -71,19 +102,51 @@ class ClientProfileScreen extends StatelessWidget {
                     Text(name, style: text.headlineMedium),
                     if (client.phone != null && client.phone!.isNotEmpty) ...[
                       const SizedBox(height: PelviSpace.xs),
-                      Text(
-                        client.phone!,
-                        style: text.bodyMedium?.copyWith(
-                          color: PelviColors.inkMuted,
+                      InkWell(
+                        onTap: () => _onPhoneTap(context, client.phone!),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.phone_outlined,
+                              size: 18,
+                              color: PelviColors.inkMuted,
+                            ),
+                            const SizedBox(width: PelviSpace.sm),
+                            Expanded(
+                              child: Text(
+                                client.phone!,
+                                style: text.bodyMedium?.copyWith(
+                                  color: PelviColors.inkMuted,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                     if (client.email != null && client.email!.isNotEmpty) ...[
                       const SizedBox(height: PelviSpace.xs),
-                      Text(
-                        client.email!,
-                        style: text.bodyMedium?.copyWith(
-                          color: PelviColors.inkMuted,
+                      InkWell(
+                        onTap: () => _launchExternal(
+                          Uri(scheme: 'mailto', path: client.email!),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.email_outlined,
+                              size: 18,
+                              color: PelviColors.inkMuted,
+                            ),
+                            const SizedBox(width: PelviSpace.sm),
+                            Expanded(
+                              child: Text(
+                                client.email!,
+                                style: text.bodyMedium?.copyWith(
+                                  color: PelviColors.inkMuted,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
