@@ -246,13 +246,25 @@ class _PhoneLink extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () => _onPhoneTap(context, phone),
-      child: Text(
-        phone,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: PelviColors.pink700,
-              decoration: TextDecoration.underline,
-              decorationColor: PelviColors.pink700,
+      child: Row(
+        children: [
+          const Icon(
+            Icons.phone_outlined,
+            size: 18,
+            color: PelviColors.pink700,
+          ),
+          const SizedBox(width: PelviSpace.sm),
+          Expanded(
+            child: Text(
+              phone,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: PelviColors.pink700,
+                    decoration: TextDecoration.underline,
+                    decorationColor: PelviColors.pink700,
+                  ),
             ),
+          ),
+        ],
       ),
     );
   }
@@ -267,13 +279,25 @@ class _EmailLink extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () => _launchExternal(Uri(scheme: 'mailto', path: email)),
-      child: Text(
-        email,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: PelviColors.inkMuted,
-              decoration: TextDecoration.underline,
-              decorationColor: PelviColors.inkMuted,
+      child: Row(
+        children: [
+          const Icon(
+            Icons.email_outlined,
+            size: 18,
+            color: PelviColors.inkMuted,
+          ),
+          const SizedBox(width: PelviSpace.sm),
+          Expanded(
+            child: Text(
+              email,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: PelviColors.inkMuted,
+                    decoration: TextDecoration.underline,
+                    decorationColor: PelviColors.inkMuted,
+                  ),
             ),
+          ),
+        ],
       ),
     );
   }
