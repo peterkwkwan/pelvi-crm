@@ -2,6 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pelvi_crm/app.dart';
+import 'package:pelvi_crm/data/appointment_overlap.dart';
 import 'package:pelvi_crm/data/database.dart';
 import 'package:pelvi_crm/data/database_provider.dart';
 import 'package:pelvi_crm/data/sync_stub.dart';
@@ -31,6 +32,71 @@ void main() {
     expect(
       nextWholeHour(DateTime(2026, 10, 28, 23, 1)),
       const TimeOfDay(hour: 0, minute: 0),
+    );
+  });
+
+  test('appointment overlap uses default duration when end missing', () {
+    final aStart = DateTime(2026, 10, 28, 9);
+    final aEnd = appointmentEffectiveEnd(aStart, null, 60);
+    final bStart = DateTime(2026, 10, 28, 9, 30);
+    final bEnd = appointmentEffectiveEnd(bStart, null, 60);
+    expect(appointmentsOverlap(aStart, aEnd, bStart, bEnd), isTrue);
+    expect(
+      appointmentsOverlap(
+        aStart,
+        aEnd,
+        DateTime(2026, 10, 28, 10),
+        DateTime(2026, 10, 28, 11),
+      ),
+      isFalse,
+    );
+    expect(
+      appointmentConflictCopy(
+        clientName: 'Ada Lovelace',
+        startsAt: aStart,
+      ),
+      'Overlaps Ada Lovelace at 09:00',
+    );
+  });
+
+  test('insertAppointment blocks overlapping slot', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+
+    final a = await db.insertClient(firstName: 'Ada', lastName: 'Lovelace');
+    final b = await db.insertClient(firstName: 'Grace', lastName: 'Hopper');
+    await db.insertAppointment(
+      clientId: a,
+      startsAt: DateTime(2026, 10, 28, 9),
+    );
+
+    await expectLater(
+      db.insertAppointment(
+        clientId: b,
+        startsAt: DateTime(2026, 10, 28, 9, 30),
+      ),
+      throwsA(isA<AppointmentConflictException>()),
+    );
+
+    // Same start after move still blocked; update of self ok.
+    final id = await db.insertAppointment(
+      clientId: b,
+      startsAt: DateTime(2026, 10, 28, 11),
+    );
+    await expectLater(
+      db.updateAppointment(
+        id: id,
+        startsAt: DateTime(2026, 10, 28, 9, 15),
+      ),
+      throwsA(isA<AppointmentConflictException>()),
+    );
+    expect(
+      await db.updateAppointment(
+        id: id,
+        startsAt: DateTime(2026, 10, 28, 11),
+      ),
+      isTrue,
     );
   });
 

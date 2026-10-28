@@ -1,7 +1,20 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
+import 'appointment_overlap.dart';
+
 part 'database.g.dart';
+
+/// Thrown when a create/update would overlap another appointment.
+class AppointmentConflictException implements Exception {
+  AppointmentConflictException(this.appointment, this.client);
+
+  final Appointment appointment;
+  final Client client;
+
+  @override
+  String toString() => 'AppointmentConflictException';
+}
 
 /// Appointment lifecycle statuses for MVP.
 enum AppointmentStatus {
@@ -96,6 +109,8 @@ class AppDatabase extends _$AppDatabase {
   static const practitionerNameKey = 'practitioner_name';
   static const recallDaysKey = 'recall_days';
   static const defaultRecallDays = '30';
+  static const defaultAppointmentMinutesKey = 'default_appointment_minutes';
+  static const defaultAppointmentMinutes = '60';
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'pelvi_crm');
@@ -123,10 +138,22 @@ class AppDatabase extends _$AppDatabase {
     return int.tryParse(raw ?? defaultRecallDays) ?? 30;
   }
 
+  Future<int> getDefaultAppointmentMinutes() async {
+    final raw = await getSetting(defaultAppointmentMinutesKey);
+    return int.tryParse(raw ?? defaultAppointmentMinutes) ?? 60;
+  }
+
   Future<void> ensureDefaults() async {
     final existing = await getSetting(recallDaysKey);
     if (existing == null) {
       await setSetting(recallDaysKey, defaultRecallDays);
+    }
+    final duration = await getSetting(defaultAppointmentMinutesKey);
+    if (duration == null) {
+      await setSetting(
+        defaultAppointmentMinutesKey,
+        defaultAppointmentMinutes,
+      );
     }
   }
 
@@ -223,12 +250,58 @@ class AppDatabase extends _$AppDatabase {
         );
   }
 
+  /// First overlapping appointment in the solo book, if any.
+  ///
+  /// shortcut: scans all rows, upgrade when diary is large
+  Future<({Appointment appointment, Client client})?>
+      findOverlappingAppointment({
+    required DateTime startsAt,
+    DateTime? endsAt,
+    int? excludeId,
+  }) async {
+    final minutes = await getDefaultAppointmentMinutes();
+    final newEnd = appointmentEffectiveEnd(startsAt, endsAt, minutes);
+    final query = select(appointments).join([
+      innerJoin(clients, clients.id.equalsExp(appointments.clientId)),
+    ]);
+    final rows = await query.get();
+    for (final row in rows) {
+      final other = row.readTable(appointments);
+      if (excludeId != null && other.id == excludeId) continue;
+      if (other.status == AppointmentStatus.cancelled) continue;
+      final otherEnd =
+          appointmentEffectiveEnd(other.startsAt, other.endsAt, minutes);
+      if (appointmentsOverlap(
+        startsAt,
+        newEnd,
+        other.startsAt,
+        otherEnd,
+      )) {
+        return (
+          appointment: other,
+          client: row.readTable(clients),
+        );
+      }
+    }
+    return null;
+  }
+
   Future<int> insertAppointment({
     required int clientId,
     required DateTime startsAt,
     DateTime? endsAt,
     AppointmentStatus status = AppointmentStatus.scheduled,
-  }) {
+  }) async {
+    final conflict = await findOverlappingAppointment(
+      startsAt: startsAt,
+      endsAt: endsAt,
+    );
+    if (conflict != null) {
+      throw AppointmentConflictException(
+        conflict.appointment,
+        conflict.client,
+      );
+    }
     return into(appointments).insert(
       AppointmentsCompanion.insert(
         clientId: clientId,
@@ -237,6 +310,36 @@ class AppDatabase extends _$AppDatabase {
         status: Value(status),
       ),
     );
+  }
+
+  Future<bool> updateAppointment({
+    required int id,
+    required DateTime startsAt,
+    DateTime? endsAt,
+    AppointmentStatus? status,
+  }) async {
+    final existing = await getAppointment(id);
+    if (existing == null) return false;
+    final conflict = await findOverlappingAppointment(
+      startsAt: startsAt,
+      endsAt: endsAt ?? existing.endsAt,
+      excludeId: id,
+    );
+    if (conflict != null) {
+      throw AppointmentConflictException(
+        conflict.appointment,
+        conflict.client,
+      );
+    }
+    final n = await (update(appointments)..where((t) => t.id.equals(id))).write(
+      AppointmentsCompanion(
+        startsAt: Value(startsAt),
+        endsAt: endsAt == null ? const Value.absent() : Value(endsAt),
+        status: status == null ? const Value.absent() : Value(status),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+    return n > 0;
   }
 
   Future<Appointment?> getAppointment(int id) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/appointment_overlap.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
@@ -128,6 +129,18 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
       );
       if (!mounted) return;
       Navigator.of(context).pop();
+    } on AppointmentConflictException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            appointmentConflictCopy(
+              clientName: clientDisplayName(e.client),
+              startsAt: e.appointment.startsAt,
+            ),
+          ),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
