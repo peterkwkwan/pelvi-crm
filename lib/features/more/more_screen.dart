@@ -12,7 +12,7 @@ class MoreScreen extends StatelessWidget {
     final db = AppDatabaseProvider.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('More')),
+      appBar: AppBar(title: const Text('Account Settings')),
       body: ListView(
         padding: const EdgeInsets.all(PelviSpace.md),
         children: [
