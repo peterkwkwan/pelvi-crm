@@ -115,6 +115,9 @@ class AppDatabase extends _$AppDatabase {
   static const defaultRecallDays = '30';
   static const defaultAppointmentMinutesKey = 'default_appointment_minutes';
   static const defaultAppointmentMinutes = '60';
+  /// Comma-separated client ids, most recently opened first.
+  static const recentClientIdsKey = 'recent_client_ids';
+  static const recentClientLimit = 8;
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'pelvi_crm');
@@ -178,6 +181,38 @@ class AppDatabase extends _$AppDatabase {
     return (select(clients)..where((t) => t.id.equals(id)))
         .watch()
         .map((rows) => rows.isEmpty ? null : rows.first);
+  }
+
+  static List<int> parseRecentClientIds(String? raw) {
+    if (raw == null || raw.isEmpty) return const [];
+    return [
+      for (final part in raw.split(','))
+        if (int.tryParse(part.trim()) != null) int.parse(part.trim()),
+    ];
+  }
+
+  Stream<List<int>> watchRecentClientIds() {
+    return (select(settings)
+          ..where((t) => t.key.equals(recentClientIdsKey)))
+        .watch()
+        .map(
+          (rows) => parseRecentClientIds(
+            rows.isEmpty ? null : rows.first.value,
+          ),
+        );
+  }
+
+  /// Record a profile open for the Clients recent strip.
+  Future<void> touchRecentClient(int id) async {
+    final current = List<int>.of(
+      parseRecentClientIds(await getSetting(recentClientIdsKey)),
+    );
+    current.remove(id);
+    current.insert(0, id);
+    if (current.length > recentClientLimit) {
+      current.removeRange(recentClientLimit, current.length);
+    }
+    await setSetting(recentClientIdsKey, current.join(','));
   }
 
   Future<int> insertClient({

@@ -41,14 +41,29 @@ Future<void> _onPhoneTap(BuildContext context, String phone) async {
   }
 }
 
-class ClientProfileScreen extends StatelessWidget {
+class ClientProfileScreen extends StatefulWidget {
   const ClientProfileScreen({super.key, required this.clientId});
 
   final int clientId;
 
   @override
+  State<ClientProfileScreen> createState() => _ClientProfileScreenState();
+}
+
+class _ClientProfileScreenState extends State<ClientProfileScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      AppDatabaseProvider.of(context).touchRecentClient(widget.clientId);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final db = AppDatabaseProvider.of(context);
+    final clientId = widget.clientId;
 
     return StreamBuilder<Client?>(
       stream: db.watchClient(clientId),

@@ -8,6 +8,8 @@ import 'package:pelvi_crm/data/database_provider.dart';
 import 'package:pelvi_crm/data/sync_stub.dart';
 import 'package:pelvi_crm/features/appointments/appointment_form_screen.dart';
 import 'package:pelvi_crm/features/calendar/calendar_screen.dart';
+import 'package:pelvi_crm/features/clients/client_format.dart';
+import 'package:pelvi_crm/features/clients/clients_screen.dart';
 import 'package:pelvi_crm/features/notes/note_editor_screen.dart';
 import 'package:pelvi_crm/features/notes/note_format.dart';
 import 'package:pelvi_crm/features/notes/soap_dictation.dart';
@@ -402,6 +404,82 @@ void main() {
 
     final history = await db.watchNotesForClient(clientId).first;
     expect(history, hasLength(2));
+  });
+
+  test('client search matches name phone email; recent order + cap', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final ada = await db.insertClient(
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      phone: '9123 4567',
+      email: 'ada@example.com',
+    );
+    final grace = await db.insertClient(
+      firstName: 'Grace',
+      lastName: 'Hopper',
+      phone: '555',
+      email: 'grace@navy.mil',
+    );
+    final all = await db.watchClients().first;
+
+    expect(filterClients(all, 'lovelace').single.id, ada);
+    expect(filterClients(all, '9123').single.id, ada);
+    expect(filterClients(all, 'navy.mil').single.id, grace);
+    expect(filterClients(all, 'zzz'), isEmpty);
+
+    await db.touchRecentClient(ada);
+    await db.touchRecentClient(grace);
+    await db.touchRecentClient(ada);
+    expect(await db.watchRecentClientIds().first, [ada, grace]);
+
+    for (var i = 0; i < AppDatabase.recentClientLimit + 2; i++) {
+      final id = await db.insertClient(
+        firstName: 'C$i',
+        lastName: 'Client',
+      );
+      await db.touchRecentClient(id);
+    }
+    final recent = await db.watchRecentClientIds().first;
+    expect(recent, hasLength(AppDatabase.recentClientLimit));
+    expect(clientsInIdOrder(await db.watchClients().first, recent), hasLength(AppDatabase.recentClientLimit));
+  });
+
+  testWidgets('Clients tab search field and recent strip', (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final ada = await db.insertClient(
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      phone: '111',
+    );
+    await db.insertClient(firstName: 'Grace', lastName: 'Hopper');
+    await db.touchRecentClient(ada);
+
+    await tester.pumpWidget(
+      AppDatabaseProvider(
+        database: db,
+        syncEngine: const StubSyncEngine(),
+        child: const MaterialApp(home: ClientsScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Search name, phone, or email'), findsOneWidget);
+    expect(find.text('RECENT'), findsOneWidget);
+    expect(find.text('Ada Lovelace'), findsWidgets);
+
+    await tester.enterText(find.byType(TextField), 'hopper');
+    await tester.pump();
+    expect(find.text('RECENT'), findsNothing);
+    expect(find.text('Grace Hopper'), findsOneWidget);
+    expect(find.text('Ada Lovelace'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 50));
   });
 
   testWidgets('note editor leaves loading after open', (tester) async {
