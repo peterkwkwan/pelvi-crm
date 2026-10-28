@@ -285,6 +285,34 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   });
 
+  testWidgets('Calendar empty-day well opens create for selected day',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    await tester.pumpWidget(
+      AppDatabaseProvider(
+        database: db,
+        syncEngine: const StubSyncEngine(),
+        child: const MaterialApp(home: CalendarScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('No appointments this day.'), findsOneWidget);
+    expect(find.text('Add'), findsOneWidget);
+
+    // Tap the message (not the CTA) — whole well is the hit target.
+    await tester.tap(find.text('No appointments this day.'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('New appointment'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 50));
+  });
+
   test('SOAP stays editable; copy last is same-client only', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);

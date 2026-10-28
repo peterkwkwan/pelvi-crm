@@ -92,7 +92,7 @@ class DashedEmptyWell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
+    final well = CustomPaint(
       painter: _DashedBorderPainter(
         color: PelviColors.border,
         radius: PelviRadius.lg,
@@ -143,6 +143,17 @@ class DashedEmptyWell extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+    if (onCta == null) return well;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onCta,
+        borderRadius: BorderRadius.circular(PelviRadius.lg),
+        splashColor: PelviColors.surfaceMuted,
+        highlightColor: PelviColors.surfaceMuted,
+        child: well,
       ),
     );
   }
