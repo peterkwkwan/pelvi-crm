@@ -49,6 +49,9 @@ class ClientProfileScreen extends StatefulWidget {
 }
 
 class _ClientProfileScreenState extends State<ClientProfileScreen> {
+  bool _selecting = false;
+  final Set<int> _selected = {};
+
   @override
   void initState() {
     super.initState();
@@ -56,6 +59,65 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
       if (!mounted) return;
       AppDatabaseProvider.of(context).touchRecentClient(widget.clientId);
     });
+  }
+
+  void _exitSelect() {
+    setState(() {
+      _selecting = false;
+      _selected.clear();
+    });
+  }
+
+  void _enterSelect(int id) {
+    setState(() {
+      _selecting = true;
+      _selected
+        ..clear()
+        ..add(id);
+    });
+  }
+
+  void _toggleSelected(int id) {
+    setState(() {
+      if (_selected.contains(id)) {
+        _selected.remove(id);
+      } else {
+        _selected.add(id);
+      }
+    });
+  }
+
+  Future<void> _confirmDeleteSelected() async {
+    final ids = _selected.toList();
+    if (ids.isEmpty) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          ids.length == 1
+              ? 'Delete appointment?'
+              : 'Delete ${ids.length} appointments?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: PelviColors.danger),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final db = AppDatabaseProvider.of(context);
+    for (final id in ids) {
+      await db.deleteAppointment(id);
+    }
+    if (!mounted) return;
+    _exitSelect();
   }
 
   @override
@@ -88,25 +150,44 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
 
         final text = Theme.of(context).textTheme;
         final name = clientDisplayName(client);
+        final n = _selected.length;
 
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(name),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => ClientFormScreen(existing: client),
+        return PopScope(
+          canPop: !_selecting,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop && _selecting) _exitSelect();
+          },
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(_selecting ? '$n selected' : name),
+              actions: [
+                if (_selecting) ...[
+                  TextButton(
+                    onPressed: _exitSelect,
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: n == 0 ? null : _confirmDeleteSelected,
+                    style: TextButton.styleFrom(
+                      foregroundColor: PelviColors.danger,
                     ),
-                  );
-                },
-                child: const Text('Edit'),
-              ),
-            ],
-          ),
-          body: ListView(
-            children: [
+                    child: const Text('Delete'),
+                  ),
+                ] else
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => ClientFormScreen(existing: client),
+                        ),
+                      );
+                    },
+                    child: const Text('Edit'),
+                  ),
+              ],
+            ),
+            body: ListView(
+              children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   PelviSpace.md,
@@ -242,9 +323,24 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                   }
                   return Column(
                     children: [
-                      for (var i = 0; i < appts.length; i++) ...[
+                      for (final (i, appt) in appts.indexed) ...[
                         if (i > 0) const Divider(height: 1),
-                        _AppointmentRow(appointment: appts[i]),
+                        _AppointmentRow(
+                          appointment: appt,
+                          selecting: _selecting,
+                          selected: _selected.contains(appt.id),
+                          onOpen: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => AppointmentFormScreen(
+                                  existing: appt,
+                                ),
+                              ),
+                            );
+                          },
+                          onLongPress: () => _enterSelect(appt.id),
+                          onToggle: () => _toggleSelected(appt.id),
+                        ),
                       ],
                     ],
                   );
@@ -252,6 +348,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
               ),
             ],
           ),
+        ),
         );
       },
     );
@@ -325,80 +422,77 @@ class _EmailLink extends StatelessWidget {
 }
 
 class _AppointmentRow extends StatelessWidget {
-  const _AppointmentRow({required this.appointment});
+  const _AppointmentRow({
+    required this.appointment,
+    required this.selecting,
+    required this.selected,
+    required this.onOpen,
+    required this.onLongPress,
+    required this.onToggle,
+  });
 
   final Appointment appointment;
-
-  Future<void> _confirmDelete(BuildContext context) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete appointment?'),
-        content: Text(formatApptWhen(appointment.startsAt)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: PelviColors.danger),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !context.mounted) return;
-    await AppDatabaseProvider.of(context).deleteAppointment(appointment.id);
-  }
+  final bool selecting;
+  final bool selected;
+  final VoidCallback onOpen;
+  final VoidCallback onLongPress;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     return InkWell(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => AppointmentFormScreen(existing: appointment),
-          ),
-        );
-      },
-      onLongPress: () => _confirmDelete(context),
+      onTap: selecting ? onToggle : onOpen,
+      onLongPress: selecting ? onToggle : onLongPress,
       splashColor: PelviColors.surfaceMuted,
       highlightColor: PelviColors.surfaceMuted,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: PelviSpace.md,
-          vertical: PelviSpace.sm + 4,
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 56),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      formatApptWhen(appointment.startsAt),
-                      style: text.labelLarge,
-                    ),
-                    Text(
-                      appointmentStatusLabel(appointment.status),
-                      style: text.labelMedium?.copyWith(
-                        color: appointmentStatusColor(appointment.status),
+      child: ColoredBox(
+        color: selected ? PelviColors.surfaceMuted : Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: PelviSpace.md,
+            vertical: PelviSpace.sm + 4,
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 56),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        formatApptWhen(appointment.startsAt),
+                        style: text.labelLarge,
                       ),
-                    ),
-                  ],
+                      Text(
+                        appointmentStatusLabel(appointment.status),
+                        style: text.labelMedium?.copyWith(
+                          color: appointmentStatusColor(appointment.status),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(
-                Icons.chevron_right,
-                color: PelviColors.inkMuted,
-                size: 20,
-              ),
-            ],
+                if (selecting)
+                  Icon(
+                    selected
+                        ? Icons.check_circle
+                        : Icons.radio_button_unchecked,
+                    color: selected
+                        ? PelviColors.pink700
+                        : PelviColors.inkMuted,
+                    size: 22,
+                  )
+                else
+                  const Icon(
+                    Icons.chevron_right,
+                    color: PelviColors.inkMuted,
+                    size: 20,
+                  ),
+              ],
+            ),
           ),
         ),
       ),

@@ -736,9 +736,65 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('Peter Kwan'), findsOneWidget);
     expect(find.text('Copy last note'), findsOneWidget);
-    expect(find.text('Go to client profile'), findsOneWidget);
+    expect(find.text('Go to client profile'), findsNothing);
+    expect(find.byTooltip('Client profile'), findsOneWidget);
     expect(find.byTooltip('Dictate'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsOneWidget);
+  });
+
+  testWidgets('profile appointments multi-delete mode', (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final clientId = await db.insertClient(
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+    );
+    final a1 = await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 10, 28, 9, 30),
+    );
+    final a2 = await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 10, 29, 10),
+    );
+
+    await tester.pumpWidget(
+      AppDatabaseProvider(
+        database: db,
+        syncEngine: const StubSyncEngine(),
+        child: MaterialApp(
+          home: ClientProfileScreen(clientId: clientId),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.longPress(find.textContaining('2026-10-28'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 selected'), findsOneWidget);
+    expect(find.text('Delete'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+
+    await tester.tap(find.textContaining('2026-10-29'));
+    await tester.pumpAndSettle();
+    expect(find.text('2 selected'), findsOneWidget);
+
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete 2 appointments?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Delete').last);
+    await tester.pumpAndSettle();
+
+    expect(await db.getAppointment(a1), isNull);
+    expect(await db.getAppointment(a2), isNull);
+    expect(find.textContaining('selected'), findsNothing);
+    expect(find.text('Edit'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 50));
   });
 
   test('recall due stream seeds late listeners', () async {

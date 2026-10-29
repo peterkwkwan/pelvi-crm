@@ -285,6 +285,12 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                   ),
                 ),
               ),
+            if (_client != null)
+              IconButton(
+                tooltip: 'Client profile',
+                onPressed: _goToClientProfile,
+                icon: const Icon(Icons.person_outline),
+              ),
           ],
         ),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
@@ -305,7 +311,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               listening: _listening,
               liveWords: _liveWords,
               onCopyLast: _copyLastNote,
-              onGoToProfile: _client == null ? null : _goToClientProfile,
             ),
             const SizedBox(height: PelviSpace.lg),
             _SoapField(
@@ -354,14 +359,12 @@ class _NoteEditorHeader extends StatelessWidget {
     required this.listening,
     required this.liveWords,
     required this.onCopyLast,
-    required this.onGoToProfile,
   });
 
   final String when;
   final bool listening;
   final String liveWords;
   final VoidCallback onCopyLast;
-  final VoidCallback? onGoToProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -384,22 +387,13 @@ class _NoteEditorHeader extends StatelessWidget {
           ),
         ],
         const SizedBox(height: PelviSpace.md),
-        Wrap(
-          spacing: PelviSpace.lg,
-          runSpacing: PelviSpace.sm,
-          children: [
-            _HeaderLink(
-              label: 'Copy last note',
-              color: PelviColors.purple700,
-              onPressed: onCopyLast,
-            ),
-            if (onGoToProfile != null)
-              _HeaderLink(
-                label: 'Go to client profile',
-                color: PelviColors.pink700,
-                onPressed: onGoToProfile!,
-              ),
-          ],
+        Align(
+          alignment: Alignment.centerLeft,
+          child: _HeaderLink(
+            label: 'Copy last note',
+            color: PelviColors.purple700,
+            onPressed: onCopyLast,
+          ),
         ),
         const SizedBox(height: PelviSpace.md),
         const Divider(height: 1, thickness: 1, color: PelviColors.border),
