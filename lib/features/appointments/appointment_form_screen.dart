@@ -18,19 +18,23 @@ TimeOfDay nextWholeHour([DateTime? now]) {
   return TimeOfDay(hour: n.hour, minute: 0);
 }
 
-/// Create an appointment: date/time + client (+ status).
+/// Create or edit an appointment: date/time + client (+ status).
 class AppointmentFormScreen extends StatefulWidget {
   const AppointmentFormScreen({
     super.key,
     this.clientId,
     this.initialDay,
+    this.existing,
   });
 
-  /// When set, client is locked to this id.
+  /// When set (and no [existing]), client is locked to this id.
   final int? clientId;
 
-  /// Optional day seed (defaults to today).
+  /// Optional day seed for create (defaults to today).
   final DateTime? initialDay;
+
+  /// When set, form edits this appointment.
+  final Appointment? existing;
 
   @override
   State<AppointmentFormScreen> createState() => _AppointmentFormScreenState();
@@ -43,14 +47,42 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
   AppointmentStatus _status = AppointmentStatus.scheduled;
   int? _clientId;
   bool _saving = false;
+  bool? _hasNote;
+
+  bool get _editing => widget.existing != null;
 
   @override
   void initState() {
     super.initState();
-    final seed = widget.initialDay ?? DateTime.now();
-    _day = DateTime(seed.year, seed.month, seed.day);
-    _time = nextWholeHour();
-    _clientId = widget.clientId;
+    final existing = widget.existing;
+    if (existing != null) {
+      _day = DateTime(
+        existing.startsAt.year,
+        existing.startsAt.month,
+        existing.startsAt.day,
+      );
+      _time = TimeOfDay(
+        hour: existing.startsAt.hour,
+        minute: existing.startsAt.minute,
+      );
+      _status = existing.status;
+      _clientId = existing.clientId;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadHasNote());
+    } else {
+      final seed = widget.initialDay ?? DateTime.now();
+      _day = DateTime(seed.year, seed.month, seed.day);
+      _time = nextWholeHour();
+      _clientId = widget.clientId;
+    }
+  }
+
+  Future<void> _loadHasNote() async {
+    final existing = widget.existing;
+    if (existing == null || !mounted) return;
+    final note = await AppDatabaseProvider.of(context)
+        .getNoteForAppointment(existing.id);
+    if (!mounted) return;
+    setState(() => _hasNote = note != null);
   }
 
   DateTime get _startsAt => DateTime(
@@ -118,6 +150,20 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
     if (status != null) setState(() => _status = status);
   }
 
+  Future<void> _openSoap() async {
+    final existing = widget.existing;
+    final clientId = _clientId;
+    if (existing == null || clientId == null) return;
+    await openNoteForAppointment(
+      context,
+      appointmentId: existing.id,
+      clientId: clientId,
+      noteDate: _startsAt,
+    );
+    if (!mounted) return;
+    await _loadHasNote();
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final clientId = _clientId;
@@ -125,6 +171,17 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
     setState(() => _saving = true);
     final db = AppDatabaseProvider.of(context);
     try {
+      if (_editing) {
+        await db.updateAppointment(
+          id: widget.existing!.id,
+          startsAt: _startsAt,
+          status: _status,
+        );
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        return;
+      }
+
       final apptId = await db.insertAppointment(
         clientId: clientId,
         startsAt: _startsAt,
@@ -204,10 +261,13 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
   Widget build(BuildContext context) {
     final db = AppDatabaseProvider.of(context);
     final text = Theme.of(context).textTheme;
-    final lockedClient = widget.clientId != null;
+    final lockedClient = _editing || widget.clientId != null;
+    final lockedClientId = widget.existing?.clientId ?? widget.clientId;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('New appointment')),
+      appBar: AppBar(
+        title: Text(_editing ? 'Edit appointment' : 'New appointment'),
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -217,7 +277,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
             const SizedBox(height: PelviSpace.xs),
             if (lockedClient)
               FutureBuilder<Client?>(
-                future: db.getClient(widget.clientId!),
+                future: db.getClient(lockedClientId!),
                 builder: (context, snap) {
                   final name = snap.data == null
                       ? '…'
@@ -310,8 +370,17 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
                         color: PelviColors.inkInverse,
                       ),
                     )
-                  : const Text('Save appointment'),
+                  : Text(_editing ? 'Save changes' : 'Save appointment'),
             ),
+            if (_editing) ...[
+              const SizedBox(height: PelviSpace.sm),
+              OutlinedButton(
+                onPressed: _openSoap,
+                child: Text(
+                  _hasNote == true ? 'Open SOAP note' : 'Create SOAP note',
+                ),
+              ),
+            ],
           ],
         ),
       ),

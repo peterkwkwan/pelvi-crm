@@ -6,8 +6,6 @@ import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/empty_state.dart';
 import '../appointments/appointment_form_screen.dart';
-import '../notes/note_format.dart';
-import '../notes/open_note.dart';
 import 'client_form_screen.dart';
 import 'client_format.dart';
 
@@ -246,10 +244,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                     children: [
                       for (var i = 0; i < appts.length; i++) ...[
                         if (i > 0) const Divider(height: 1),
-                        _AppointmentRow(
-                          appointment: appts[i],
-                          clientId: client.id,
-                        ),
+                        _AppointmentRow(appointment: appts[i]),
                       ],
                     ],
                   );
@@ -330,25 +325,45 @@ class _EmailLink extends StatelessWidget {
 }
 
 class _AppointmentRow extends StatelessWidget {
-  const _AppointmentRow({
-    required this.appointment,
-    required this.clientId,
-  });
+  const _AppointmentRow({required this.appointment});
 
   final Appointment appointment;
-  final int clientId;
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete appointment?'),
+        content: Text(formatApptWhen(appointment.startsAt)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: PelviColors.danger),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    await AppDatabaseProvider.of(context).deleteAppointment(appointment.id);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
     return InkWell(
       onTap: () {
-        openNoteForAppointment(
-          context,
-          appointmentId: appointment.id,
-          clientId: clientId,
-          noteDate: appointment.startsAt,
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => AppointmentFormScreen(existing: appointment),
+          ),
         );
       },
+      onLongPress: () => _confirmDelete(context),
       splashColor: PelviColors.surfaceMuted,
       highlightColor: PelviColors.surfaceMuted,
       child: Padding(
@@ -367,32 +382,20 @@ class _AppointmentRow extends StatelessWidget {
                   children: [
                     Text(
                       formatApptWhen(appointment.startsAt),
-                      style: Theme.of(context).textTheme.labelLarge,
+                      style: text.labelLarge,
                     ),
-                    Text.rich(
-                      TextSpan(
-                        style: Theme.of(context).textTheme.labelMedium,
-                        children: [
-                          TextSpan(
-                            text: appointmentStatusLabel(appointment.status),
-                            style: TextStyle(
-                              color:
-                                  appointmentStatusColor(appointment.status),
-                            ),
-                          ),
-                          TextSpan(
-                            text: ' · Open note',
-                            style: TextStyle(color: PelviColors.inkMuted),
-                          ),
-                        ],
+                    Text(
+                      appointmentStatusLabel(appointment.status),
+                      style: text.labelMedium?.copyWith(
+                        color: appointmentStatusColor(appointment.status),
                       ),
                     ),
                   ],
                 ),
               ),
               const Icon(
-                Icons.notes_outlined,
-                color: PelviColors.purple700,
+                Icons.chevron_right,
+                color: PelviColors.inkMuted,
                 size: 20,
               ),
             ],

@@ -600,6 +600,14 @@ class AppDatabase extends _$AppDatabase {
         .getSingleOrNull();
   }
 
+  /// Removes the appointment; unlinks any SOAP note (note kept).
+  Future<void> deleteAppointment(int id) async {
+    await (update(notes)..where((t) => t.appointmentId.equals(id))).write(
+      const NotesCompanion(appointmentId: Value(null)),
+    );
+    await (delete(appointments)..where((t) => t.id.equals(id))).go();
+  }
+
   Stream<Note?> watchNote(int id) {
     return (select(notes)..where((t) => t.id.equals(id)))
         .watch()

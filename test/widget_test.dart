@@ -10,6 +10,7 @@ import 'package:pelvi_crm/data/sync_stub.dart';
 import 'package:pelvi_crm/features/appointments/appointment_form_screen.dart';
 import 'package:pelvi_crm/features/calendar/calendar_screen.dart';
 import 'package:pelvi_crm/features/clients/client_format.dart';
+import 'package:pelvi_crm/features/clients/client_profile_screen.dart';
 import 'package:pelvi_crm/features/clients/clients_screen.dart';
 import 'package:pelvi_crm/features/notes/note_editor_screen.dart';
 import 'package:pelvi_crm/features/notes/note_format.dart';
@@ -144,6 +145,65 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  test('deleteAppointment removes row and unlinks note', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final clientId = await db.insertClient(firstName: 'Ada', lastName: 'L');
+    final apptId = await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 10, 28, 9),
+    );
+    final note = await db.getOrCreateNoteForAppointment(
+      appointmentId: apptId,
+      clientId: clientId,
+      noteDate: DateTime(2026, 10, 28, 9),
+    );
+
+    await db.deleteAppointment(apptId);
+    expect(await db.getAppointment(apptId), isNull);
+    final kept = await db.getNote(note.id);
+    expect(kept, isNotNull);
+    expect(kept!.appointmentId, isNull);
+  });
+
+  testWidgets('profile appointment tap opens edit, not SOAP', (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final clientId = await db.insertClient(
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+    );
+    await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 10, 28, 9, 30),
+    );
+
+    await tester.pumpWidget(
+      AppDatabaseProvider(
+        database: db,
+        syncEngine: const StubSyncEngine(),
+        child: MaterialApp(
+          home: ClientProfileScreen(clientId: clientId),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Open note'), findsNothing);
+    await tester.tap(find.textContaining('2026-10-28'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit appointment'), findsOneWidget);
+    expect(find.text('Create SOAP note'), findsOneWidget);
+    expect(find.text('Save changes'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 50));
   });
 
   testWidgets('first-run shows when practitioner name missing', (tester) async {
