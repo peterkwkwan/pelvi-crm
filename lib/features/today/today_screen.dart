@@ -29,7 +29,7 @@ class TodayScreen extends StatelessWidget {
         title: const Text('Today'),
         actions: [
           StreamBuilder<List<RecallDueEntry>>(
-            stream: db.watchRecallDueClients(),
+            stream: db.watchRecallInboxClients(),
             builder: (context, snap) {
               final count = snap.data?.length ?? 0;
               return NotificationBellButton(

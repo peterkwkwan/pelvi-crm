@@ -238,6 +238,45 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                     ],
                     const SizedBox(height: PelviSpace.lg),
                     const Divider(height: 1),
+                    StreamBuilder<bool>(
+                      stream: db.watchRecallMuted(client.id),
+                      builder: (context, muteSnap) {
+                        final muted = muteSnap.data ?? false;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: PelviSpace.sm,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Mute recalls',
+                                      style: text.labelLarge,
+                                    ),
+                                    Text(
+                                      muted
+                                          ? 'Hidden from Due and notifications'
+                                          : 'Show in Due when inactive',
+                                      style: text.labelMedium,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch.adaptive(
+                                value: muted,
+                                activeThumbColor: PelviColors.pink700,
+                                onChanged: (v) =>
+                                    db.setRecallMuted(client.id, v),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1),
                     const SizedBox(height: PelviSpace.lg),
                     Text('CLIENT SUMMARY', style: text.labelMedium),
                     const SizedBox(height: PelviSpace.sm),

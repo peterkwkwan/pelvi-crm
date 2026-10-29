@@ -45,7 +45,7 @@ class _AppShellState extends State<AppShell> {
     final db = AppDatabaseProvider.of(context);
     _recallSub?.cancel();
     _recallNotifSub?.cancel();
-    _recallSub = db.watchRecallDueClients().listen((due) {
+    _recallSub = db.watchRecallInboxClients().listen((due) {
       _dueCount = due.length;
       LocalNotifications.syncRecallDueCount(
         _dueCount,

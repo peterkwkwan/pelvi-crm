@@ -544,6 +544,30 @@ void main() {
       formatLastSeenCaption(now.subtract(const Duration(days: 12)), now),
       'Last seen 12 days ago',
     );
+
+    // Mute hides from Due; Clear only from inbox.
+    await db.setRecallMuted(stale, true);
+    expect(await db.isRecallMuted(stale), isTrue);
+    due = await db.getRecallDueClients(now: now);
+    expect(due.map((e) => e.client.id), isNot(contains(stale)));
+    expect(
+      computeRecallDue(
+        clients: await db.watchClients().first,
+        appointments: await db.select(db.appointments).get(),
+        notes: await db.select(db.notes).get(),
+        recallDays: 7,
+        now: now,
+        mutedClientIds: {stale},
+      ).map((e) => e.client.id),
+      isNot(contains(stale)),
+    );
+
+    await db.setRecallMuted(stale, false);
+    await db.clearRecallInboxItem(stale);
+    due = await db.getRecallDueClients(now: now);
+    expect(due.map((e) => e.client.id), contains(stale));
+    final inbox = await db.getRecallInboxClients(now: now);
+    expect(inbox.map((e) => e.client.id), isNot(contains(stale)));
   });
 
   test('client search matches name phone email; recent order + cap', () async {

@@ -39,10 +39,12 @@ List<RecallDueEntry> computeRecallDue({
   required List<Note> notes,
   required int recallDays,
   required DateTime now,
+  Set<int> mutedClientIds = const {},
 }) {
   final cutoff = now.subtract(Duration(days: recallDays));
   final due = <RecallDueEntry>[];
   for (final c in clients) {
+    if (mutedClientIds.contains(c.id)) continue;
     final last = lastSeenForClient(
       clientId: c.id,
       appointments: appointments,

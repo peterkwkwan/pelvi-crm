@@ -129,6 +129,10 @@ class AppDatabase extends _$AppDatabase {
   static const defaultTimezone = 'Asia/Hong_Kong';
   static const recallNotificationsKey = 'recall_notifications_enabled';
   static const defaultRecallNotifications = '1';
+  /// Comma-separated client ids with recalls muted (hidden from Due + bell).
+  static const recallMutedIdsKey = 'recall_muted_client_ids';
+  /// Comma-separated client ids cleared from the notifications inbox.
+  static const recallClearedIdsKey = 'recall_cleared_client_ids';
   /// Comma-separated client ids, most recently opened first.
   static const recentClientIdsKey = 'recent_client_ids';
   static const recentClientLimit = 8;
@@ -218,6 +222,12 @@ class AppDatabase extends _$AppDatabase {
       (select(settings)..where((t) => t.key.equals(recallDaysKey)))
           .watch()
           .listen((_) => ping()),
+      (select(settings)..where((t) => t.key.equals(recallMutedIdsKey)))
+          .watch()
+          .listen((_) => ping()),
+      (select(settings)..where((t) => t.key.equals(recallClearedIdsKey)))
+          .watch()
+          .listen((_) => ping()),
     ]);
 
     _recallDueStream = Stream<List<RecallDueEntry>>.multi((multi) {
@@ -250,13 +260,69 @@ class AppDatabase extends _$AppDatabase {
     final appts = await select(appointments).get();
     final notesList = await select(notes).get();
     final days = await getRecallDays();
+    final muted = await getRecallMutedIds();
     return computeRecallDue(
       clients: clientsList,
       appointments: appts,
       notes: notesList,
       recallDays: days,
       now: now ?? DateTime.now(),
+      mutedClientIds: muted,
     );
+  }
+
+  /// Due recalls minus cleared inbox items (Today bell + Notifications sheet).
+  Future<List<RecallDueEntry>> getRecallInboxClients({DateTime? now}) async {
+    final due = await getRecallDueClients(now: now);
+    final cleared = await getRecallClearedIds();
+    if (cleared.isEmpty) return due;
+    return [for (final e in due) if (!cleared.contains(e.client.id)) e];
+  }
+
+  /// Inbox list; replays via [watchRecallDueClients] (cleared key also pings due).
+  Stream<List<RecallDueEntry>> watchRecallInboxClients() {
+    return watchRecallDueClients().asyncMap((due) async {
+      final cleared = await getRecallClearedIds();
+      if (cleared.isEmpty) return due;
+      return [for (final e in due) if (!cleared.contains(e.client.id)) e];
+    });
+  }
+
+  static Set<int> parseIdSet(String? raw) =>
+      parseRecentClientIds(raw).toSet();
+
+  Future<Set<int>> getRecallMutedIds() async =>
+      parseIdSet(await getSetting(recallMutedIdsKey));
+
+  Future<Set<int>> getRecallClearedIds() async =>
+      parseIdSet(await getSetting(recallClearedIdsKey));
+
+  Future<bool> isRecallMuted(int clientId) async =>
+      (await getRecallMutedIds()).contains(clientId);
+
+  Stream<bool> watchRecallMuted(int clientId) {
+    return (select(settings)..where((t) => t.key.equals(recallMutedIdsKey)))
+        .watch()
+        .map((rows) {
+          final raw = rows.isEmpty ? null : rows.first.value;
+          return parseIdSet(raw).contains(clientId);
+        });
+  }
+
+  Future<void> setRecallMuted(int clientId, bool muted) async {
+    final ids = Set<int>.of(await getRecallMutedIds());
+    if (muted) {
+      ids.add(clientId);
+    } else {
+      ids.remove(clientId);
+    }
+    await setSetting(recallMutedIdsKey, ids.join(','));
+  }
+
+  /// Hide one due recall from the notifications inbox / bell (not Due tab).
+  Future<void> clearRecallInboxItem(int clientId) async {
+    final ids = Set<int>.of(await getRecallClearedIds())..add(clientId);
+    await setSetting(recallClearedIdsKey, ids.join(','));
   }
 
   @override
