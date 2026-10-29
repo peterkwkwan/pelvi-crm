@@ -6,12 +6,14 @@ import 'package:speech_to_text/speech_to_text.dart';
 import '../../data/database.dart';
 import '../../data/database_provider.dart';
 import '../../theme/theme.dart';
+import '../../widgets/picker_sheet.dart';
 import '../../widgets/show_snack.dart';
 import '../clients/client_format.dart';
 import '../clients/client_profile_screen.dart';
 import 'dictation_apply_sheet.dart';
 import 'note_format.dart';
 import 'soap_dictation.dart';
+import 'soap_templates.dart';
 
 /// Always-editable SOAP note editor with autosave.
 class NoteEditorScreen extends StatefulWidget {
@@ -44,6 +46,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   bool _saving = false;
   bool _hydrated = false;
   Timer? _saveDebounce;
+  SoapTemplate _template = soapTemplateBlank;
 
   @override
   void initState() {
@@ -133,8 +136,63 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       _objective.text = last.objective;
       _assessment.text = last.assessment;
       _plan.text = last.plan;
+      _template = soapTemplateBlank;
     });
     showPelviSnackBar(context, 'Copied last note.');
+  }
+
+  bool get _soapFieldsNonEmpty =>
+      _subjective.text.trim().isNotEmpty ||
+      _objective.text.trim().isNotEmpty ||
+      _assessment.text.trim().isNotEmpty ||
+      _plan.text.trim().isNotEmpty;
+
+  Future<void> _pickTemplate() async {
+    final picked = await showPelviPickerSheet<SoapTemplate>(
+      context: context,
+      title: 'Template',
+      selected: _template,
+      options: [
+        for (final t in soapTemplates)
+          PelviPickerOption(value: t, label: t.label),
+      ],
+    );
+    if (!mounted || picked == null) return;
+    if (picked.isBlank || !picked.hasFill) {
+      setState(() => _template = soapTemplateBlank);
+      return;
+    }
+    if (_soapFieldsNonEmpty) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Replace SOAP fields?'),
+          content: Text(
+            'This will overwrite Subjective, Objective, Assessment, and Plan '
+            'with “${picked.label}”.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Replace'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || ok != true) return;
+    }
+    setState(() {
+      _template = picked;
+      _subjective.text = picked.subjective;
+      _objective.text = picked.objective;
+      _assessment.text = picked.assessment;
+      _plan.text = picked.plan;
+    });
+    _scheduleSave();
   }
 
   TextEditingController _controllerFor(SoapSection section) => switch (section) {
@@ -310,7 +368,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               when: when,
               listening: _listening,
               liveWords: _liveWords,
+              templateLabel: _template.label,
               onCopyLast: _copyLastNote,
+              onPickTemplate: _pickTemplate,
             ),
             const SizedBox(height: PelviSpace.lg),
             _SoapField(
@@ -358,13 +418,17 @@ class _NoteEditorHeader extends StatelessWidget {
     required this.when,
     required this.listening,
     required this.liveWords,
+    required this.templateLabel,
     required this.onCopyLast,
+    required this.onPickTemplate,
   });
 
   final String when;
   final bool listening;
   final String liveWords;
+  final String templateLabel;
   final VoidCallback onCopyLast;
+  final VoidCallback onPickTemplate;
 
   @override
   Widget build(BuildContext context) {
@@ -387,13 +451,22 @@ class _NoteEditorHeader extends StatelessWidget {
           ),
         ],
         const SizedBox(height: PelviSpace.md),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: _HeaderLink(
-            label: 'Copy last note',
-            color: PelviColors.purple700,
-            onPressed: onCopyLast,
-          ),
+        Wrap(
+          spacing: PelviSpace.lg,
+          runSpacing: PelviSpace.sm,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _HeaderLink(
+              label: 'Copy last note',
+              color: PelviColors.purple700,
+              onPressed: onCopyLast,
+            ),
+            _HeaderLink(
+              label: 'Template: $templateLabel',
+              color: PelviColors.pink700,
+              onPressed: onPickTemplate,
+            ),
+          ],
         ),
         const SizedBox(height: PelviSpace.md),
         const Divider(height: 1, thickness: 1, color: PelviColors.border),

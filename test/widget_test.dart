@@ -16,6 +16,7 @@ import 'package:pelvi_crm/features/clients/clients_screen.dart';
 import 'package:pelvi_crm/features/notes/note_editor_screen.dart';
 import 'package:pelvi_crm/features/notes/note_format.dart';
 import 'package:pelvi_crm/features/notes/soap_dictation.dart';
+import 'package:pelvi_crm/features/notes/soap_templates.dart';
 import 'package:pelvi_crm/features/notifications/notifications_sheet.dart';
 import 'package:pelvi_crm/widgets/show_snack.dart';
 
@@ -68,6 +69,42 @@ void main() {
     expect(appendSoapTranscript('keep', '  '), 'keep');
   });
 
+  test('soap templates map S/O/A/P markers and preserve newlines', () {
+    expect(soapTemplates.map((t) => t.label).toList(), [
+      '---BLANK---',
+      'Postnatal Check',
+      'Pelvic Floor',
+      'DRAM',
+    ]);
+    expect(soapTemplateBlank.isBlank, isTrue);
+    expect(soapTemplateBlank.hasFill, isFalse);
+
+    final pn = soapTemplatePostnatal;
+    expect(pn.subjective, contains('OBGYN'));
+    expect(pn.subjective, contains('Social:'));
+    expect(pn.objective, contains('Obs'));
+    expect(pn.objective, contains('PERFECT'));
+    expect(pn.assessment, contains('1. Postnatal check'));
+    expect(pn.plan, contains('Home exercise'));
+    expect(pn.plan, contains('PF plan'));
+    expect(pn.subjective, contains('\n'));
+
+    final pf = soapTemplatePelvicFloor;
+    expect(pf.subjective, contains('Bladder:'));
+    expect(pf.subjective, contains('Bowel:'));
+    expect(pf.subjective, contains('Prolapse:'));
+    expect(pf.subjective, contains('Intercourse:'));
+    expect(pf.objective, contains('Obs:'));
+    expect(pf.assessment.isNotEmpty, isTrue);
+    expect(pf.plan.isNotEmpty, isTrue);
+
+    final dram = soapTemplateDram;
+    expect(dram.subjective, isEmpty);
+    expect(dram.objective, contains('Obs:'));
+    expect(dram.objective, contains('C-section'));
+    expect(dram.assessment, isEmpty);
+    expect(dram.plan.isNotEmpty, isTrue);
+  });
 
   test('nextWholeHour rounds past the hour, keeps exact hour', () {
     expect(
