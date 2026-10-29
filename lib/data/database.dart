@@ -320,6 +320,8 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Hide one due recall from the notifications inbox / bell (not Due tab).
+  ///
+  /// shortcut: cleared id stays forever, upgrade when re-notify after clear is needed
   Future<void> clearRecallInboxItem(int clientId) async {
     final ids = Set<int>.of(await getRecallClearedIds())..add(clientId);
     await setSetting(recallClearedIdsKey, ids.join(','));
