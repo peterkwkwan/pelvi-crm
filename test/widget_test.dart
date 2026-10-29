@@ -7,6 +7,7 @@ import 'package:pelvi_crm/data/backup.dart';
 import 'package:pelvi_crm/data/database.dart';
 import 'package:pelvi_crm/data/database_provider.dart';
 import 'package:pelvi_crm/data/sync_stub.dart';
+import 'package:pelvi_crm/features/appointments/appointment_agenda_row.dart';
 import 'package:pelvi_crm/features/appointments/appointment_form_screen.dart';
 import 'package:pelvi_crm/features/calendar/calendar_screen.dart';
 import 'package:pelvi_crm/features/clients/client_format.dart';
@@ -202,6 +203,49 @@ void main() {
     expect(find.text('Edit appointment'), findsOneWidget);
     expect(find.text('Create SOAP note'), findsOneWidget);
     expect(find.text('Save changes'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 50));
+  });
+
+  testWidgets('agenda row tap opens edit, not SOAP', (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final clientId = await db.insertClient(
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+    );
+    final apptId = await db.insertAppointment(
+      clientId: clientId,
+      startsAt: DateTime(2026, 10, 29, 10, 0),
+    );
+    final appt = await db.getAppointment(apptId);
+    final client = await db.getClient(clientId);
+
+    await tester.pumpWidget(
+      AppDatabaseProvider(
+        database: db,
+        syncEngine: const StubSyncEngine(),
+        child: MaterialApp(
+          home: Scaffold(
+            body: AppointmentAgendaRow(
+              appointment: appt!,
+              client: client!,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Ada Lovelace'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit appointment'), findsOneWidget);
+    expect(find.text('Create SOAP note'), findsOneWidget);
+    expect(find.text('Save changes'), findsOneWidget);
+    expect(find.text('Subjective'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 50));

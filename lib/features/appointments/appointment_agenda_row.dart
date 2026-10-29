@@ -4,8 +4,9 @@ import '../../data/database.dart';
 import '../../theme/theme.dart';
 import '../clients/client_format.dart';
 import '../notes/open_note.dart';
+import 'appointment_form_screen.dart';
 
-/// Today / Calendar day-list row: time · client · status → open note.
+/// Today / Calendar day-list row: tap → edit appointment; note icon → SOAP.
 class AppointmentAgendaRow extends StatelessWidget {
   const AppointmentAgendaRow({
     super.key,
@@ -18,6 +19,23 @@ class AppointmentAgendaRow extends StatelessWidget {
   final Client client;
   final bool past;
 
+  void _openEdit(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AppointmentFormScreen(existing: appointment),
+      ),
+    );
+  }
+
+  void _openSoap(BuildContext context) {
+    openNoteForAppointment(
+      context,
+      appointmentId: appointment.id,
+      clientId: client.id,
+      noteDate: appointment.startsAt,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ink = past ? PelviColors.inkMuted : PelviColors.ink;
@@ -25,14 +43,7 @@ class AppointmentAgendaRow extends StatelessWidget {
     final text = Theme.of(context).textTheme;
 
     return InkWell(
-      onTap: () {
-        openNoteForAppointment(
-          context,
-          appointmentId: appointment.id,
-          clientId: client.id,
-          noteDate: appointment.startsAt,
-        );
-      },
+      onTap: () => _openEdit(context),
       splashColor: PelviColors.surfaceMuted,
       highlightColor: PelviColors.surfaceMuted,
       child: Padding(
@@ -94,10 +105,17 @@ class AppointmentAgendaRow extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(
-                Icons.notes_outlined,
-                color: past ? PelviColors.inkMuted : PelviColors.purple700,
-                size: 20,
+              IconButton(
+                tooltip: 'SOAP note',
+                onPressed: () => _openSoap(context),
+                icon: Icon(
+                  Icons.notes_outlined,
+                  color: past ? PelviColors.inkMuted : PelviColors.purple700,
+                  size: 20,
+                ),
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                padding: EdgeInsets.zero,
               ),
             ],
           ),
