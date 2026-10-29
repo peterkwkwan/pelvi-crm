@@ -20,6 +20,8 @@ class ClientsScreen extends StatefulWidget {
 class _ClientsScreenState extends State<ClientsScreen> {
   String _query = '';
   _ClientsFilter _filter = _ClientsFilter.all;
+  bool _selecting = false;
+  final Set<int> _selected = {};
 
   void _openNew() {
     Navigator.of(context).push(
@@ -37,123 +39,152 @@ class _ClientsScreenState extends State<ClientsScreen> {
     );
   }
 
+  void _exitSelect() {
+    setState(() {
+      _selecting = false;
+      _selected.clear();
+    });
+  }
+
+  void _enterSelect(int id) {
+    setState(() {
+      _selecting = true;
+      _selected
+        ..clear()
+        ..add(id);
+    });
+  }
+
+  void _toggleSelected(int id) {
+    setState(() {
+      if (_selected.contains(id)) {
+        _selected.remove(id);
+      } else {
+        _selected.add(id);
+      }
+    });
+  }
+
+  Future<void> _confirmDeleteSelected() async {
+    final ids = _selected.toList();
+    if (ids.isEmpty) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          ids.length == 1
+              ? 'Delete client?'
+              : 'Delete ${ids.length} clients?',
+        ),
+        content: const Text(
+          'Appointments and SOAP notes for these clients will be removed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: PelviColors.danger),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final db = AppDatabaseProvider.of(context);
+    for (final id in ids) {
+      await db.deleteClient(id);
+    }
+    if (!mounted) return;
+    _exitSelect();
+  }
+
+  Future<void> _togglePinSelected(Set<int> pinnedIds) async {
+    final ids = _selected.toList();
+    if (ids.isEmpty) return;
+    final allPinned = ids.every(pinnedIds.contains);
+    await AppDatabaseProvider.of(context).setClientsPinned(ids, !allPinned);
+    if (!mounted) return;
+    _exitSelect();
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = AppDatabaseProvider.of(context);
     final text = Theme.of(context).textTheme;
     final now = DateTime.now();
+    final n = _selected.length;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Clients'),
-        actions: [
-          IconButton(
-            tooltip: 'Add client',
-            onPressed: _openNew,
-            style: IconButton.styleFrom(
-              foregroundColor: PelviColors.pink700,
-            ),
-            icon: const Icon(Icons.person_add_outlined),
-          ),
-          const SizedBox(width: PelviSpace.sm),
-        ],
-      ),
-      body: StreamBuilder<List<Client>>(
-        stream: db.watchClients(),
-        builder: (context, snap) {
-          final clients = snap.data;
-          if (clients == null) {
-            return const Center(
-              child: CircularProgressIndicator(color: PelviColors.pink700),
-            );
-          }
-          if (clients.isEmpty) {
-            return Column(
-              children: [
-                const Expanded(
-                  child: QuietEmptyState(
-                    title: 'No clients yet',
-                    body:
-                        'Add your first patient to start booking visits and writing SOAP notes.',
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    PelviSpace.md,
-                    0,
-                    PelviSpace.md,
-                    PelviSpace.lg,
-                  ),
-                  child: DashedEmptyWell(
-                    message: 'Your client list will appear here.',
-                    ctaLabel: 'Add client',
-                    onCta: _openNew,
-                  ),
-                ),
-              ],
-            );
-          }
-
-          return StreamBuilder<List<RecallDueEntry>>(
-            stream: db.watchRecallDueClients(),
-            builder: (context, dueSnap) {
-              final due = dueSnap.data ?? const <RecallDueEntry>[];
-              final dueById = {for (final e in due) e.client.id: e};
-              final searching = _query.trim().isNotEmpty;
-
-              var listed = filterClients(clients, _query);
-              if (_filter == _ClientsFilter.due) {
-                listed = [
-                  for (final c in listed)
-                    if (dueById.containsKey(c.id)) c,
-                ];
-                // Oldest last-seen first when showing due.
-                listed.sort(
-                  (a, b) => dueById[a.id]!
-                      .lastSeen
-                      .compareTo(dueById[b.id]!.lastSeen),
-                );
-              }
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      PelviSpace.md,
-                      PelviSpace.md,
-                      PelviSpace.md,
-                      PelviSpace.sm,
+    return PopScope(
+      canPop: !_selecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _selecting) _exitSelect();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_selecting ? '$n selected' : 'Clients'),
+          actions: [
+            if (_selecting) ...[
+              TextButton(
+                onPressed: _exitSelect,
+                child: const Text('Cancel'),
+              ),
+              StreamBuilder<List<int>>(
+                stream: db.watchPinnedClientIds(),
+                builder: (context, pinSnap) {
+                  final pinned = (pinSnap.data ?? const []).toSet();
+                  final allPinned =
+                      n > 0 && _selected.every(pinned.contains);
+                  return TextButton(
+                    onPressed: n == 0
+                        ? null
+                        : () => _togglePinSelected(pinned),
+                    style: TextButton.styleFrom(
+                      foregroundColor: PelviColors.purple700,
                     ),
-                    child: TextField(
-                      onChanged: (v) => setState(() => _query = v),
-                      textInputAction: TextInputAction.search,
-                      decoration: InputDecoration(
-                        hintText: 'Search name, phone, or email',
-                        prefixIcon: const Icon(
-                          Icons.search,
-                          color: PelviColors.inkMuted,
-                        ),
-                        filled: true,
-                        fillColor: PelviColors.surfaceMuted,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(PelviRadius.md),
-                          borderSide:
-                              const BorderSide(color: PelviColors.border),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(PelviRadius.md),
-                          borderSide:
-                              const BorderSide(color: PelviColors.border),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(PelviRadius.md),
-                          borderSide: const BorderSide(
-                            color: PelviColors.pink700,
-                            width: 1.5,
-                          ),
-                        ),
-                      ),
+                    child: Text(allPinned ? 'Unpin' : 'Pin'),
+                  );
+                },
+              ),
+              TextButton(
+                onPressed: n == 0 ? null : _confirmDeleteSelected,
+                style: TextButton.styleFrom(
+                  foregroundColor: PelviColors.danger,
+                ),
+                child: const Text('Delete'),
+              ),
+            ] else ...[
+              IconButton(
+                tooltip: 'Add client',
+                onPressed: _openNew,
+                style: IconButton.styleFrom(
+                  foregroundColor: PelviColors.pink700,
+                ),
+                icon: const Icon(Icons.person_add_outlined),
+              ),
+              const SizedBox(width: PelviSpace.sm),
+            ],
+          ],
+        ),
+        body: StreamBuilder<List<Client>>(
+          stream: db.watchClients(),
+          builder: (context, snap) {
+            final clients = snap.data;
+            if (clients == null) {
+              return const Center(
+                child: CircularProgressIndicator(color: PelviColors.pink700),
+              );
+            }
+            if (clients.isEmpty) {
+              return Column(
+                children: [
+                  const Expanded(
+                    child: QuietEmptyState(
+                      title: 'No clients yet',
+                      body:
+                          'Add your first patient to start booking visits and writing SOAP notes.',
                     ),
                   ),
                   Padding(
@@ -161,86 +192,317 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       PelviSpace.md,
                       0,
                       PelviSpace.md,
-                      PelviSpace.sm,
+                      PelviSpace.lg,
                     ),
-                    child: Row(
-                      children: [
-                        _FilterChip(
-                          label: 'All',
-                          selected: _filter == _ClientsFilter.all,
-                          onTap: () =>
-                              setState(() => _filter = _ClientsFilter.all),
-                        ),
-                        const SizedBox(width: PelviSpace.sm),
-                        _FilterChip(
-                          label: due.isEmpty
-                              ? 'Due'
-                              : 'Due (${due.length})',
-                          selected: _filter == _ClientsFilter.due,
-                          onTap: () =>
-                              setState(() => _filter = _ClientsFilter.due),
-                        ),
-                      ],
+                    child: DashedEmptyWell(
+                      message: 'Your client list will appear here.',
+                      ctaLabel: 'Add client',
+                      onCta: _openNew,
                     ),
                   ),
-                  if (!searching && _filter == _ClientsFilter.all)
-                    StreamBuilder<List<int>>(
-                      stream: db.watchRecentClientIds(),
-                      builder: (context, recentSnap) {
-                        final recent = clientsInIdOrder(
-                          clients,
-                          recentSnap.data ?? const [],
-                        );
-                        if (recent.isEmpty) return const SizedBox.shrink();
-                        return _RecentStrip(
-                          clients: recent,
-                          onTap: _openProfile,
-                        );
-                      },
-                    ),
-                  const Divider(height: 1, color: PelviColors.chromeBorder),
-                  if (listed.isEmpty)
-                    Expanded(
-                      child: Center(
-                        child: Text(
-                          _filter == _ClientsFilter.due && !searching
-                              ? 'No recalls due.'
-                              : 'No matches.',
-                          style: text.bodyMedium?.copyWith(
+                ],
+              );
+            }
+
+            return StreamBuilder<List<RecallDueEntry>>(
+              stream: db.watchRecallDueClients(),
+              builder: (context, dueSnap) {
+                final due = dueSnap.data ?? const <RecallDueEntry>[];
+                final dueById = {for (final e in due) e.client.id: e};
+                final searching = _query.trim().isNotEmpty;
+
+                var listed = filterClients(clients, _query);
+                final dueMode = _filter == _ClientsFilter.due;
+                if (dueMode) {
+                  listed = [
+                    for (final c in listed)
+                      if (dueById.containsKey(c.id)) c,
+                  ];
+                  // Oldest last-seen first when showing due.
+                  listed.sort(
+                    (a, b) => dueById[a.id]!
+                        .lastSeen
+                        .compareTo(dueById[b.id]!.lastSeen),
+                  );
+                }
+
+                final showStrips =
+                    !searching && !dueMode && !_selecting;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        PelviSpace.md,
+                        PelviSpace.md,
+                        PelviSpace.md,
+                        PelviSpace.sm,
+                      ),
+                      child: TextField(
+                        onChanged: (v) => setState(() => _query = v),
+                        textInputAction: TextInputAction.search,
+                        decoration: InputDecoration(
+                          hintText: 'Search name, phone, or email',
+                          prefixIcon: const Icon(
+                            Icons.search,
                             color: PelviColors.inkMuted,
+                          ),
+                          filled: true,
+                          fillColor: PelviColors.surfaceMuted,
+                          border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(PelviRadius.md),
+                            borderSide: const BorderSide(
+                              color: PelviColors.border,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(PelviRadius.md),
+                            borderSide: const BorderSide(
+                              color: PelviColors.border,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(PelviRadius.md),
+                            borderSide: const BorderSide(
+                              color: PelviColors.pink700,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                       ),
-                    )
-                  else
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: listed.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final c = listed[index];
-                          final dueEntry = dueById[c.id];
-                          final caption = dueEntry == null
-                              ? null
-                              : formatLastSeenCaption(dueEntry.lastSeen, now);
-                          return _ClientRow(
-                            client: c,
-                            dueCaption: _filter == _ClientsFilter.due
-                                ? caption
-                                : null,
-                            onTap: () => _openProfile(c.id),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        PelviSpace.md,
+                        0,
+                        PelviSpace.md,
+                        PelviSpace.sm,
+                      ),
+                      child: Row(
+                        children: [
+                          _FilterChip(
+                            label: 'All',
+                            selected: _filter == _ClientsFilter.all,
+                            onTap: () => setState(
+                              () => _filter = _ClientsFilter.all,
+                            ),
+                          ),
+                          const SizedBox(width: PelviSpace.sm),
+                          _FilterChip(
+                            label: due.isEmpty
+                                ? 'Due'
+                                : 'Due (${due.length})',
+                            selected: dueMode,
+                            onTap: () => setState(
+                              () => _filter = _ClientsFilter.due,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (showStrips)
+                      StreamBuilder<List<int>>(
+                        stream: db.watchRecentClientIds(),
+                        builder: (context, recentSnap) {
+                          final recent = clientsInIdOrder(
+                            clients,
+                            recentSnap.data ?? const [],
+                          );
+                          if (recent.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return _ChipStrip(
+                            caption: 'RECENT',
+                            clients: recent,
+                            onTap: _openProfile,
                           );
                         },
                       ),
-                    ),
-                ],
-              );
-            },
-          );
-        },
+                    if (showStrips)
+                      StreamBuilder<List<int>>(
+                        stream: db.watchPinnedClientIds(),
+                        builder: (context, pinSnap) {
+                          final pinned = clientsInIdOrder(
+                            clients,
+                            pinSnap.data ?? const [],
+                          );
+                          if (pinned.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return _ChipStrip(
+                            caption: 'PINNED',
+                            captionIcon: Icons.push_pin,
+                            clients: pinned,
+                            onTap: _openProfile,
+                          );
+                        },
+                      ),
+                    const Divider(height: 1, color: PelviColors.chromeBorder),
+                    if (listed.isEmpty)
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            dueMode && !searching
+                                ? 'No recalls due.'
+                                : 'No matches.',
+                            style: text.bodyMedium?.copyWith(
+                              color: PelviColors.inkMuted,
+                            ),
+                          ),
+                        ),
+                      )
+                    else if (dueMode)
+                      Expanded(
+                        child: ListView.separated(
+                          itemCount: listed.length,
+                          separatorBuilder: (_, __) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final c = listed[index];
+                            final dueEntry = dueById[c.id];
+                            final caption = dueEntry == null
+                                ? null
+                                : formatLastSeenCaption(
+                                    dueEntry.lastSeen,
+                                    now,
+                                  );
+                            return _ClientRow(
+                              client: c,
+                              dueCaption: caption,
+                              selecting: _selecting,
+                              selected: _selected.contains(c.id),
+                              onTap: () => _selecting
+                                  ? _toggleSelected(c.id)
+                                  : _openProfile(c.id),
+                              onLongPress: () => _selecting
+                                  ? _toggleSelected(c.id)
+                                  : _enterSelect(c.id),
+                            );
+                          },
+                        ),
+                      )
+                    else
+                      Expanded(
+                        child: _AlphaClientList(
+                          clients: listed,
+                          selecting: _selecting,
+                          selected: _selected,
+                          onOpen: _openProfile,
+                          onEnterSelect: _enterSelect,
+                          onToggle: _toggleSelected,
+                        ),
+                      ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
+}
+
+class _AlphaClientList extends StatelessWidget {
+  const _AlphaClientList({
+    required this.clients,
+    required this.selecting,
+    required this.selected,
+    required this.onOpen,
+    required this.onEnterSelect,
+    required this.onToggle,
+  });
+
+  final List<Client> clients;
+  final bool selecting;
+  final Set<int> selected;
+  final ValueChanged<int> onOpen;
+  final ValueChanged<int> onEnterSelect;
+  final ValueChanged<int> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = groupClientsByLetter(clients);
+    return CustomScrollView(
+      slivers: [
+        for (final g in groups) ...[
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _LetterHeaderDelegate(g.letter),
+          ),
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final c = g.clients[index];
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (index > 0) const Divider(height: 1),
+                    _ClientRow(
+                      client: c,
+                      selecting: selecting,
+                      selected: selected.contains(c.id),
+                      onTap: () => selecting
+                          ? onToggle(c.id)
+                          : onOpen(c.id),
+                      onLongPress: () => selecting
+                          ? onToggle(c.id)
+                          : onEnterSelect(c.id),
+                    ),
+                  ],
+                );
+              },
+              childCount: g.clients.length,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _LetterHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _LetterHeaderDelegate(this.letter);
+
+  final String letter;
+
+  @override
+  double get minExtent => 28;
+
+  @override
+  double get maxExtent => 28;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return ColoredBox(
+      color: PelviColors.surfaceMuted,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: PelviSpace.md),
+          child: Text(
+            letter,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: PelviColors.purple700,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _LetterHeaderDelegate oldDelegate) =>
+      oldDelegate.letter != letter;
 }
 
 class _FilterChip extends StatelessWidget {
@@ -281,12 +543,16 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-class _RecentStrip extends StatelessWidget {
-  const _RecentStrip({
+class _ChipStrip extends StatelessWidget {
+  const _ChipStrip({
+    required this.caption,
     required this.clients,
     required this.onTap,
+    this.captionIcon,
   });
 
+  final String caption;
+  final IconData? captionIcon;
   final List<Client> clients;
   final ValueChanged<int> onTap;
 
@@ -303,7 +569,19 @@ class _RecentStrip extends StatelessWidget {
             PelviSpace.md,
             PelviSpace.sm,
           ),
-          child: Text('RECENT', style: text.labelMedium),
+          child: Row(
+            children: [
+              if (captionIcon != null) ...[
+                Icon(
+                  captionIcon,
+                  size: 14,
+                  color: PelviColors.purple700,
+                ),
+                const SizedBox(width: PelviSpace.xs),
+              ],
+              Text(caption, style: text.labelMedium),
+            ],
+          ),
         ),
         // Two chip rows (36) + gap; ClipRect hides anything that would need a 3rd.
         Padding(
@@ -323,8 +601,14 @@ class _RecentStrip extends StatelessWidget {
                         onPressed: () => onTap(c.id),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: PelviColors.ink,
-                          side: const BorderSide(color: PelviColors.border),
-                          backgroundColor: PelviColors.surface,
+                          side: BorderSide(
+                            color: captionIcon != null
+                                ? PelviColors.purple400
+                                : PelviColors.border,
+                          ),
+                          backgroundColor: captionIcon != null
+                              ? PelviColors.purple50
+                              : PelviColors.surface,
                           padding: const EdgeInsets.symmetric(
                             horizontal: PelviSpace.md,
                           ),
@@ -356,11 +640,17 @@ class _ClientRow extends StatelessWidget {
   const _ClientRow({
     required this.client,
     required this.onTap,
+    required this.onLongPress,
+    required this.selecting,
+    required this.selected,
     this.dueCaption,
   });
 
   final Client client;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final bool selecting;
+  final bool selected;
   final String? dueCaption;
 
   @override
@@ -372,40 +662,55 @@ class _ClientRow extends StatelessWidget {
         ].join(' · ');
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       splashColor: PelviColors.surfaceMuted,
       highlightColor: PelviColors.surfaceMuted,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: PelviSpace.md,
-          vertical: PelviSpace.sm + 4,
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 56),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      clientDisplayName(client),
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                    if (meta.isNotEmpty)
+      child: ColoredBox(
+        color: selected ? PelviColors.surfaceMuted : Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: PelviSpace.md,
+            vertical: PelviSpace.sm + 4,
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 56),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
                       Text(
-                        meta,
-                        style: Theme.of(context).textTheme.labelMedium,
+                        clientDisplayName(client),
+                        style: Theme.of(context).textTheme.labelLarge,
                       ),
-                  ],
+                      if (meta.isNotEmpty)
+                        Text(
+                          meta,
+                          style: Theme.of(context).textTheme.labelMedium,
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(
-                Icons.chevron_right,
-                color: PelviColors.inkMuted,
-                size: 20,
-              ),
-            ],
+                if (selecting)
+                  Icon(
+                    selected
+                        ? Icons.check_circle
+                        : Icons.radio_button_unchecked,
+                    color: selected
+                        ? PelviColors.pink700
+                        : PelviColors.inkMuted,
+                    size: 22,
+                  )
+                else
+                  const Icon(
+                    Icons.chevron_right,
+                    color: PelviColors.inkMuted,
+                    size: 20,
+                  ),
+              ],
+            ),
           ),
         ),
       ),

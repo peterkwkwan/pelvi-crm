@@ -136,6 +136,8 @@ class AppDatabase extends _$AppDatabase {
   /// Comma-separated client ids, most recently opened first.
   static const recentClientIdsKey = 'recent_client_ids';
   static const recentClientLimit = 8;
+  /// Comma-separated pinned (favourite) client ids, most recently pinned first.
+  static const pinnedClientIdsKey = 'pinned_client_ids';
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'pelvi_crm');
@@ -491,6 +493,50 @@ class AppDatabase extends _$AppDatabase {
       current.removeRange(recentClientLimit, current.length);
     }
     await setSetting(recentClientIdsKey, current.join(','));
+  }
+
+  Future<List<int>> getPinnedClientIds() async =>
+      parseRecentClientIds(await getSetting(pinnedClientIdsKey));
+
+  Stream<List<int>> watchPinnedClientIds() {
+    return (select(settings)
+          ..where((t) => t.key.equals(pinnedClientIdsKey)))
+        .watch()
+        .map(
+          (rows) => parseRecentClientIds(
+            rows.isEmpty ? null : rows.first.value,
+          ),
+        );
+  }
+
+  Future<void> setClientsPinned(Iterable<int> ids, bool pinned) async {
+    final current = List<int>.of(await getPinnedClientIds());
+    for (final id in ids) {
+      current.remove(id);
+      if (pinned) current.insert(0, id);
+    }
+    await setSetting(pinnedClientIdsKey, current.join(','));
+  }
+
+  /// Delete client and owned appointments/notes; scrub id from settings lists.
+  Future<void> deleteClient(int id) async {
+    await (delete(notes)..where((t) => t.clientId.equals(id))).go();
+    await (delete(appointments)..where((t) => t.clientId.equals(id))).go();
+    await (delete(clients)..where((t) => t.id.equals(id))).go();
+    await _scrubClientIdFromSettings(id);
+  }
+
+  Future<void> _scrubClientIdFromSettings(int id) async {
+    for (final key in [
+      recentClientIdsKey,
+      pinnedClientIdsKey,
+      recallMutedIdsKey,
+      recallClearedIdsKey,
+    ]) {
+      final ids = List<int>.of(parseRecentClientIds(await getSetting(key)))
+        ..remove(id);
+      await setSetting(key, ids.join(','));
+    }
   }
 
   Future<int> insertClient({

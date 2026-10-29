@@ -694,7 +694,48 @@ void main() {
     expect(clientsInIdOrder(await db.watchClients().first, recent), hasLength(AppDatabase.recentClientLimit));
   });
 
-  testWidgets('Clients tab search field and recent strip', (tester) async {
+  test('pin clients + letter groups + deleteClient scrub', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    final ada = await db.insertClient(
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+    );
+    final grace = await db.insertClient(
+      firstName: 'Grace',
+      lastName: 'Hopper',
+    );
+    final zed = await db.insertClient(
+      firstName: 'Zed',
+      lastName: '9nine',
+    );
+
+    final sorted = await db.watchClients().first;
+    final groups = groupClientsByLetter(sorted);
+    expect(groups.map((g) => g.letter), ['#', 'H', 'L']);
+    expect(clientSectionLetter(sorted.firstWhere((c) => c.id == zed)), '#');
+
+    await db.setClientsPinned([ada, grace], true);
+    expect(await db.getPinnedClientIds(), [grace, ada]);
+    await db.setClientsPinned([ada], false);
+    expect(await db.getPinnedClientIds(), [grace]);
+
+    await db.touchRecentClient(grace);
+    await db.setRecallMuted(grace, true);
+    await db.insertAppointment(
+      clientId: grace,
+      startsAt: DateTime(2026, 1, 1, 10),
+    );
+    await db.deleteClient(grace);
+    expect(await db.getClient(grace), isNull);
+    expect(await db.getPinnedClientIds(), isEmpty);
+    expect(await db.watchRecentClientIds().first, isEmpty);
+    expect(await db.getRecallMutedIds(), isEmpty);
+    expect(await db.select(db.appointments).get(), isEmpty);
+  });
+
+  testWidgets('Clients tab search, recent, pin strip, letter headers', (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
 
@@ -705,6 +746,7 @@ void main() {
     );
     await db.insertClient(firstName: 'Grace', lastName: 'Hopper');
     await db.touchRecentClient(ada);
+    await db.setClientsPinned([ada], true);
 
     await tester.pumpWidget(
       AppDatabaseProvider(
@@ -720,11 +762,15 @@ void main() {
     expect(find.text('All'), findsOneWidget);
     expect(find.textContaining('Due'), findsOneWidget);
     expect(find.text('RECENT'), findsOneWidget);
+    expect(find.text('PINNED'), findsOneWidget);
+    expect(find.text('H'), findsOneWidget);
+    expect(find.text('L'), findsOneWidget);
     expect(find.text('Ada Lovelace'), findsWidgets);
 
     await tester.enterText(find.byType(TextField), 'hopper');
     await tester.pump();
     expect(find.text('RECENT'), findsNothing);
+    expect(find.text('PINNED'), findsNothing);
     expect(find.text('Grace Hopper'), findsOneWidget);
     expect(find.text('Ada Lovelace'), findsNothing);
 

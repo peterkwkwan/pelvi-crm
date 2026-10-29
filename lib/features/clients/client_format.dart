@@ -35,6 +35,41 @@ List<Client> clientsInIdOrder(List<Client> clients, List<int> recentIds) {
   ];
 }
 
+/// Phone-book section letter from last name (A–Z or `#`).
+String clientSectionLetter(Client c) {
+  final name = c.lastName.trim();
+  if (name.isEmpty) return '#';
+  final u = name[0].toUpperCase();
+  if (u.compareTo('A') >= 0 && u.compareTo('Z') <= 0) return u;
+  return '#';
+}
+
+/// Group already A–Z-sorted clients into sticky letter sections.
+List<({String letter, List<Client> clients})> groupClientsByLetter(
+  List<Client> sorted,
+) {
+  final groups = <({String letter, List<Client> clients})>[];
+  String? current;
+  var bucket = <Client>[];
+  for (final c in sorted) {
+    final letter = clientSectionLetter(c);
+    if (current == null) {
+      current = letter;
+      bucket = [c];
+    } else if (letter == current) {
+      bucket.add(c);
+    } else {
+      groups.add((letter: current, clients: bucket));
+      current = letter;
+      bucket = [c];
+    }
+  }
+  if (current != null) {
+    groups.add((letter: current, clients: bucket));
+  }
+  return groups;
+}
+
 String appointmentStatusLabel(AppointmentStatus status) {
   return switch (status) {
     AppointmentStatus.scheduled => 'Scheduled',
