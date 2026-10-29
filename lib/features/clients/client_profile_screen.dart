@@ -316,71 +316,78 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                 ),
               ),
               const Divider(height: 1),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  PelviSpace.md,
-                  PelviSpace.md,
-                  PelviSpace.md,
-                  PelviSpace.sm,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text('APPOINTMENTS', style: text.labelMedium),
-                    const SizedBox(height: PelviSpace.sm),
-                    FilledButton(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => AppointmentFormScreen(
-                              clientId: client.id,
-                            ),
-                          ),
-                        );
-                      },
-                      child: const Text('New appointment'),
-                    ),
-                  ],
-                ),
-              ),
               StreamBuilder<List<Appointment>>(
                 stream: db.watchAppointmentsForClient(clientId),
                 builder: (context, apptSnap) {
                   final appts = apptSnap.data ?? const <Appointment>[];
-                  if (appts.isEmpty) {
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        PelviSpace.md,
-                        PelviSpace.sm,
-                        PelviSpace.md,
-                        PelviSpace.lg,
-                      ),
-                      child: const DashedEmptyWell(
-                        message: 'No appointments yet for this client.',
+                  void openNew() {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => AppointmentFormScreen(
+                          clientId: client.id,
+                        ),
                       ),
                     );
                   }
+
                   return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      for (final (i, appt) in appts.indexed) ...[
-                        if (i > 0) const Divider(height: 1),
-                        _AppointmentRow(
-                          appointment: appt,
-                          selecting: _selecting,
-                          selected: _selected.contains(appt.id),
-                          onOpen: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => AppointmentFormScreen(
-                                  existing: appt,
-                                ),
-                              ),
-                            );
-                          },
-                          onLongPress: () => _enterSelect(appt.id),
-                          onToggle: () => _toggleSelected(appt.id),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          PelviSpace.md,
+                          PelviSpace.md,
+                          PelviSpace.md,
+                          PelviSpace.sm,
                         ),
-                      ],
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text('APPOINTMENTS', style: text.labelMedium),
+                            if (appts.isNotEmpty) ...[
+                              const SizedBox(height: PelviSpace.sm),
+                              FilledButton(
+                                onPressed: openNew,
+                                child: const Text('New appointment'),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (appts.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            PelviSpace.md,
+                            PelviSpace.sm,
+                            PelviSpace.md,
+                            PelviSpace.lg,
+                          ),
+                          child: DashedEmptyWell(
+                            message: 'No appointments yet for this client.',
+                            ctaLabel: 'New appointment',
+                            onCta: openNew,
+                          ),
+                        )
+                      else
+                        for (final (i, appt) in appts.indexed) ...[
+                          if (i > 0) const Divider(height: 1),
+                          _AppointmentRow(
+                            appointment: appt,
+                            selecting: _selecting,
+                            selected: _selected.contains(appt.id),
+                            onOpen: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => AppointmentFormScreen(
+                                    existing: appt,
+                                  ),
+                                ),
+                              );
+                            },
+                            onLongPress: () => _enterSelect(appt.id),
+                            onToggle: () => _toggleSelected(appt.id),
+                          ),
+                        ],
                     ],
                   );
                 },
