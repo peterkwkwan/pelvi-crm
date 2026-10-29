@@ -7,6 +7,7 @@ import '../../theme/theme.dart';
 import '../../widgets/picker_sheet.dart';
 import '../../widgets/show_snack.dart';
 import '../clients/client_format.dart';
+import '../notes/note_format.dart';
 import '../notes/open_note.dart';
 
 /// Next whole hour for a new appointment (12:48 → 13:00; on the hour → that hour).
@@ -330,10 +331,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
             Text('DATE', style: text.labelMedium),
             const SizedBox(height: PelviSpace.xs),
             _fieldTap(
-              value:
-                  '${_day.year.toString().padLeft(4, '0')}-'
-                  '${_day.month.toString().padLeft(2, '0')}-'
-                  '${_day.day.toString().padLeft(2, '0')}',
+              value: formatNoteDate(_day),
               hint: '',
               onTap: _pickDate,
               trailing: Icons.calendar_today_outlined,
