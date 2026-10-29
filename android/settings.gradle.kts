@@ -20,6 +20,9 @@ pluginManagement {
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "9.0.1" apply false
+    // No stable AGP ships built-in Kotlin ≥2.2.20 (still 2.2.10 through 9.5/9.6-alpha).
+    // Flutter 3.47 reads AGP's applied KGP via getKotlinAndroidPluginVersion — pin explicit KGP.
+    id("org.jetbrains.kotlin.android") version "2.3.20" apply false
 }
 
 include(":app")
