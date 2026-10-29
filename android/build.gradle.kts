@@ -1,3 +1,11 @@
+// AGP 9.0.1 bundles Kotlin 2.2.10; pin ≥ Flutter min (2.2.20) without applying KGP.
+// https://developer.android.com/build/releases/agp-9-0-0-release-notes#runtime-dependency-on-kotlin-gradle-plugin
+buildscript {
+    dependencies {
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.20")
+    }
+}
+
 allprojects {
     repositories {
         google()
