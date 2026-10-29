@@ -185,7 +185,7 @@ class AppDatabase extends _$AppDatabase {
   List<RecallDueEntry>? _lastRecallDue;
   final _recallDueSubs = <StreamSubscription<Object?>>[];
 
-  /// Clients with no non-cancelled appointment/note inside the recall window.
+  /// Seen clients with no non-cancelled appointment/note inside the recall window.
   ///
   /// Cached broadcast that seeds each new listener with the latest list —
   /// a plain broadcast (no replay) left the Today bell sheet spinning forever.

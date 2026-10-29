@@ -541,10 +541,13 @@ void main() {
     );
 
     var due = await db.getRecallDueClients(now: now);
-    expect(due.map((e) => e.client.id), containsAll([stale, never, cancelledOnly]));
+    // Never-seen + cancelled-only stay out; only stale (seen, past window).
+    expect(due.map((e) => e.client.id), [stale]);
     expect(due.map((e) => e.client.id), isNot(contains(fresh)));
+    expect(due.map((e) => e.client.id), isNot(contains(never)));
+    expect(due.map((e) => e.client.id), isNot(contains(cancelledOnly)));
 
-    // Note inside window clears due.
+    // First non-cancelled appt + recent note → no longer due.
     final appt = await db.insertAppointment(
       clientId: never,
       startsAt: now.subtract(const Duration(days: 60)),
@@ -580,8 +583,8 @@ void main() {
         notes: [],
         recallDays: 30,
         now: now,
-      ).length,
-      5,
+      ),
+      isEmpty,
     );
     expect(formatLastSeenCaption(null, now), 'Never seen');
     expect(

@@ -107,17 +107,12 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   for (final c in listed)
                     if (dueById.containsKey(c.id)) c,
                 ];
-                // Oldest / never-seen first when showing due.
-                listed.sort((a, b) {
-                  final aLast = dueById[a.id]?.lastSeen;
-                  final bLast = dueById[b.id]?.lastSeen;
-                  if (aLast == null && bLast == null) {
-                    return a.lastName.compareTo(b.lastName);
-                  }
-                  if (aLast == null) return -1;
-                  if (bLast == null) return 1;
-                  return aLast.compareTo(bLast);
-                });
+                // Oldest last-seen first when showing due.
+                listed.sort(
+                  (a, b) => dueById[a.id]!
+                      .lastSeen
+                      .compareTo(dueById[b.id]!.lastSeen),
+                );
               }
 
               return Column(
