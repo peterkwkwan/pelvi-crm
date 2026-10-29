@@ -15,6 +15,7 @@ import 'package:pelvi_crm/features/clients/clients_screen.dart';
 import 'package:pelvi_crm/features/notes/note_editor_screen.dart';
 import 'package:pelvi_crm/features/notes/note_format.dart';
 import 'package:pelvi_crm/features/notes/soap_dictation.dart';
+import 'package:pelvi_crm/features/notifications/notifications_sheet.dart';
 import 'package:pelvi_crm/widgets/show_snack.dart';
 
 void main() {
@@ -738,5 +739,64 @@ void main() {
     expect(find.text('Go to client profile'), findsOneWidget);
     expect(find.byTooltip('Dictate'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsOneWidget);
+  });
+
+  test('recall due stream seeds late listeners', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+
+    // First listener warms the cached broadcast (AppShell / Today).
+    final first = await db.watchRecallDueClients().first;
+    expect(first, isEmpty);
+
+    // Second listener (notifications sheet) must not hang waiting for a
+    // non-replaying broadcast emission.
+    final second = await db
+        .watchRecallDueClients()
+        .timeout(const Duration(seconds: 2))
+        .first;
+    expect(second, isEmpty);
+  });
+
+  testWidgets('notifications sheet leaves loading after open', (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.ensureDefaults();
+
+    // Warm cached broadcast (AppShell), then open sheet as a late listener.
+    db.watchRecallDueClients().listen((_) {}).cancel();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.pumpWidget(
+      AppDatabaseProvider(
+        database: db,
+        syncEngine: const StubSyncEngine(),
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) {
+              return Scaffold(
+                body: TextButton(
+                  onPressed: () => showNotificationsSheet(context),
+                  child: const Text('Bell'),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Bell'));
+    await tester.pump(); // sheet route
+    await tester.pump(); // microtask seed
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Notifications'), findsOneWidget);
+    expect(find.text('No recalls due.'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }

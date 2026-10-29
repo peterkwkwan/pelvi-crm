@@ -178,11 +178,13 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Stream<List<RecallDueEntry>>? _recallDueStream;
+  List<RecallDueEntry>? _lastRecallDue;
   final _recallDueSubs = <StreamSubscription<Object?>>[];
 
   /// Clients with no non-cancelled appointment/note inside the recall window.
   ///
-  /// Cached broadcast stream so StreamBuilders don't resubscribe every rebuild.
+  /// Cached broadcast that seeds each new listener with the latest list —
+  /// a plain broadcast (no replay) left the Today bell sheet spinning forever.
   Stream<List<RecallDueEntry>> watchRecallDueClients() {
     if (_recallDueStream != null) return _recallDueStream!;
     final controller = StreamController<List<RecallDueEntry>>.broadcast();
@@ -199,6 +201,7 @@ class AppDatabase extends _$AppDatabase {
         queued = false;
         try {
           final due = await getRecallDueClients();
+          _lastRecallDue = due;
           if (!controller.isClosed) controller.add(due);
         } catch (e, st) {
           if (!controller.isClosed) controller.addError(e, st);
@@ -216,7 +219,24 @@ class AppDatabase extends _$AppDatabase {
           .watch()
           .listen((_) => ping()),
     ]);
-    _recallDueStream = controller.stream;
+
+    _recallDueStream = Stream<List<RecallDueEntry>>.multi((multi) {
+      final last = _lastRecallDue;
+      if (last != null) {
+        // Microtask: sync add during StreamBuilder.subscribe → setState-in-build.
+        scheduleMicrotask(() {
+          if (!multi.isClosed) multi.add(last);
+        });
+      } else {
+        emit();
+      }
+      final sub = controller.stream.listen(
+        multi.add,
+        onError: multi.addError,
+        onDone: multi.close,
+      );
+      multi.onCancel = sub.cancel;
+    }, isBroadcast: true);
     return _recallDueStream!;
   }
 
@@ -245,6 +265,7 @@ class AppDatabase extends _$AppDatabase {
       await s.cancel();
     }
     _recallDueSubs.clear();
+    _lastRecallDue = null;
     _recallDueStream = null;
     _recallDaysStream = null;
     await super.close();
