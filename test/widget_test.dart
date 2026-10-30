@@ -694,6 +694,21 @@ void main() {
     expect(clientsInIdOrder(await db.watchClients().first, recent), hasLength(AppDatabase.recentClientLimit));
   });
 
+  test('stickyLetterAtOffset returns one letter, never a stack', () {
+    const sections = [
+      (letter: 'B', count: 1),
+      (letter: 'C', count: 1),
+      (letter: 'J', count: 2),
+    ];
+    final bEnd = kAlphaLetterHeaderHeight + kAlphaClientRowHeight;
+    final cEnd = bEnd + kAlphaLetterHeaderHeight + kAlphaClientRowHeight;
+    expect(stickyLetterAtOffset(sections, 0), 'B');
+    expect(stickyLetterAtOffset(sections, bEnd - 0.1), 'B');
+    expect(stickyLetterAtOffset(sections, bEnd), 'C');
+    expect(stickyLetterAtOffset(sections, cEnd), 'J');
+    expect(stickyLetterAtOffset(sections, cEnd + 50), 'J');
+  });
+
   test('pin clients + letter groups + deleteClient scrub', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
@@ -715,6 +730,23 @@ void main() {
     final groups = groupClientsByLetter(sorted);
     expect(groups.map((g) => g.letter), ['#', 'H', 'L']);
     expect(clientSectionLetter(sorted.firstWhere((c) => c.id == zed)), '#');
+
+    final sections = [
+      for (final g in groups) (letter: g.letter, count: g.clients.length),
+    ];
+    // One letter at a time — past `#` (1 client) lands on H, not a B/C/J stack.
+    final afterHash = kAlphaLetterHeaderHeight + kAlphaClientRowHeight;
+    expect(stickyLetterAtOffset(sections, 0), '#');
+    expect(stickyLetterAtOffset(sections, afterHash), 'H');
+    expect(
+      stickyLetterAtOffset(
+        sections,
+        afterHash +
+            kAlphaLetterHeaderHeight +
+            kAlphaClientRowHeight,
+      ),
+      'L',
+    );
 
     await db.setClientsPinned([ada, grace], true);
     expect(await db.getPinnedClientIds(), [grace, ada]);
@@ -763,7 +795,7 @@ void main() {
     expect(find.textContaining('Due'), findsOneWidget);
     expect(find.text('RECENT'), findsOneWidget);
     expect(find.text('PINNED'), findsOneWidget);
-    // Sticky letters only on the main All list (chips have no letter headers).
+    // In-list A–Z letters only (one scroll sticky overlay, not N pinned headers).
     expect(find.text('H'), findsOneWidget);
     expect(find.text('L'), findsOneWidget);
     // Chip + main list both show Ada; not three full A–Z copies.

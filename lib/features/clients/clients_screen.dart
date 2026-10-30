@@ -407,7 +407,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
   }
 }
 
-class _AlphaClientList extends StatelessWidget {
+class _AlphaClientList extends StatefulWidget {
   const _AlphaClientList({
     required this.clients,
     required this.selecting,
@@ -425,84 +425,139 @@ class _AlphaClientList extends StatelessWidget {
   final ValueChanged<int> onToggle;
 
   @override
+  State<_AlphaClientList> createState() => _AlphaClientListState();
+}
+
+class _AlphaClientListState extends State<_AlphaClientList> {
+  final _scroll = ScrollController();
+  late List<({String letter, List<Client> clients})> _groups;
+  late List<({String letter, int count})> _sections;
+  String _sticky = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _rebuildGroups();
+    _scroll.addListener(_syncSticky);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AlphaClientList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.clients, widget.clients)) {
+      _rebuildGroups();
+      _syncSticky();
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroll.removeListener(_syncSticky);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _rebuildGroups() {
+    _groups = groupClientsByLetter(widget.clients);
+    _sections = [
+      for (final g in _groups) (letter: g.letter, count: g.clients.length),
+    ];
+    _sticky = '';
+  }
+
+  void _syncSticky() {
+    final offset = _scroll.hasClients ? _scroll.offset : 0.0;
+    // At rest the in-list letter is enough; overlay only while scrolled.
+    final next = offset <= 0
+        ? ''
+        : stickyLetterAtOffset(_sections, offset);
+    if (next != _sticky) setState(() => _sticky = next);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final groups = groupClientsByLetter(clients);
-    return CustomScrollView(
-      slivers: [
-        for (final g in groups) ...[
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _LetterHeaderDelegate(g.letter),
+    // One overlay letter from scroll index — N× pinned headers stack (B/C/J).
+    return Stack(
+      children: [
+        ListView.builder(
+          controller: _scroll,
+          itemCount: _groups.fold<int>(
+            0,
+            (n, g) => n + 1 + g.clients.length,
           ),
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final c = g.clients[index];
+          itemBuilder: (context, index) {
+            var i = index;
+            for (final g in _groups) {
+              if (i == 0) return _LetterBar(g.letter);
+              i--;
+              if (i < g.clients.length) {
+                final c = g.clients[i];
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (index > 0) const Divider(height: 1),
-                    _ClientRow(
-                      client: c,
-                      selecting: selecting,
-                      selected: selected.contains(c.id),
-                      onTap: () => selecting
-                          ? onToggle(c.id)
-                          : onOpen(c.id),
-                      onLongPress: () => selecting
-                          ? onToggle(c.id)
-                          : onEnterSelect(c.id),
+                    if (i > 0) const Divider(height: 1),
+                    SizedBox(
+                      height: kAlphaClientRowHeight,
+                      child: _ClientRow(
+                        client: c,
+                        selecting: widget.selecting,
+                        selected: widget.selected.contains(c.id),
+                        onTap: () => widget.selecting
+                            ? widget.onToggle(c.id)
+                            : widget.onOpen(c.id),
+                        onLongPress: () => widget.selecting
+                            ? widget.onToggle(c.id)
+                            : widget.onEnterSelect(c.id),
+                      ),
                     ),
                   ],
                 );
-              },
-              childCount: g.clients.length,
-            ),
+              }
+              i -= g.clients.length;
+            }
+            return const SizedBox.shrink();
+          },
+        ),
+        if (_sticky.isNotEmpty)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _LetterBar(_sticky),
           ),
-        ],
       ],
     );
   }
 }
 
-class _LetterHeaderDelegate extends SliverPersistentHeaderDelegate {
-  _LetterHeaderDelegate(this.letter);
+class _LetterBar extends StatelessWidget {
+  const _LetterBar(this.letter);
 
   final String letter;
 
   @override
-  double get minExtent => 28;
-
-  @override
-  double get maxExtent => 28;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return ColoredBox(
+  Widget build(BuildContext context) {
+    return Material(
       color: PelviColors.surfaceMuted,
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: PelviSpace.md),
-          child: Text(
-            letter,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: PelviColors.purple700,
-                  fontWeight: FontWeight.w700,
-                ),
+      child: SizedBox(
+        height: kAlphaLetterHeaderHeight,
+        width: double.infinity,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: PelviSpace.md),
+            child: Text(
+              letter,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: PelviColors.purple700,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
           ),
         ),
       ),
     );
   }
-
-  @override
-  bool shouldRebuild(covariant _LetterHeaderDelegate oldDelegate) =>
-      oldDelegate.letter != letter;
 }
 
 class _FilterChip extends StatelessWidget {

@@ -70,6 +70,35 @@ List<({String letter, List<Client> clients})> groupClientsByLetter(
   return groups;
 }
 
+/// Letter heights / row extents must match `_LetterBar` / `_ClientRow` layout.
+const kAlphaLetterHeaderHeight = 28.0;
+const kAlphaClientRowHeight = 80.0;
+const kAlphaClientDividerHeight = 1.0;
+
+/// Current A–Z sticky letter for [offset] — one letter, never a stacked set.
+String stickyLetterAtOffset(
+  List<({String letter, int count})> sections,
+  double offset, {
+  double letterHeight = kAlphaLetterHeaderHeight,
+  double rowHeight = kAlphaClientRowHeight,
+  double dividerHeight = kAlphaClientDividerHeight,
+}) {
+  if (sections.isEmpty) return '';
+  final yTop = offset < 0 ? 0.0 : offset;
+  var y = 0.0;
+  var letter = sections.first.letter;
+  for (final s in sections) {
+    letter = s.letter;
+    final clientsExtent = s.count <= 0
+        ? 0.0
+        : s.count * rowHeight + (s.count - 1) * dividerHeight;
+    final next = y + letterHeight + clientsExtent;
+    if (yTop < next) return letter;
+    y = next;
+  }
+  return letter;
+}
+
 String appointmentStatusLabel(AppointmentStatus status) {
   return switch (status) {
     AppointmentStatus.scheduled => 'Scheduled',
