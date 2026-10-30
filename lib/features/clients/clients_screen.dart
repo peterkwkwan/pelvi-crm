@@ -304,96 +304,88 @@ class _ClientsScreenState extends State<ClientsScreen> {
                         ],
                       ),
                     ),
-                    if (showStrips)
-                      StreamBuilder<List<int>>(
-                        stream: db.watchRecentClientIds(),
-                        builder: (context, recentSnap) {
-                          final recent = clientsInIdOrder(
-                            clients,
-                            recentSnap.data ?? const [],
-                          );
-                          if (recent.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-                          return _ChipStrip(
-                            caption: 'RECENT',
-                            clients: recent,
-                            onTap: _openProfile,
-                          );
-                        },
-                      ),
-                    if (showStrips)
-                      StreamBuilder<List<int>>(
-                        stream: db.watchPinnedClientIds(),
-                        builder: (context, pinSnap) {
-                          final pinned = clientsInIdOrder(
-                            clients,
-                            pinSnap.data ?? const [],
-                          );
-                          if (pinned.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-                          return _ChipStrip(
-                            caption: 'PINNED',
-                            captionIcon: Icons.push_pin,
-                            clients: pinned,
-                            onTap: _openProfile,
-                          );
-                        },
-                      ),
-                    const Divider(height: 1, color: PelviColors.chromeBorder),
-                    if (listed.isEmpty)
+                    if (dueMode)
                       Expanded(
-                        child: Center(
-                          child: Text(
-                            dueMode && !searching
-                                ? 'No recalls due.'
-                                : 'No matches.',
-                            style: text.bodyMedium?.copyWith(
-                              color: PelviColors.inkMuted,
-                            ),
-                          ),
-                        ),
-                      )
-                    else if (dueMode)
-                      Expanded(
-                        child: ListView.separated(
-                          itemCount: listed.length,
-                          separatorBuilder: (_, __) =>
-                              const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final c = listed[index];
-                            final dueEntry = dueById[c.id];
-                            final caption = dueEntry == null
-                                ? null
-                                : formatLastSeenCaption(
-                                    dueEntry.lastSeen,
-                                    now,
+                        child: listed.isEmpty
+                            ? Center(
+                                child: Text(
+                                  searching
+                                      ? 'No matches.'
+                                      : 'No recalls due.',
+                                  style: text.bodyMedium?.copyWith(
+                                    color: PelviColors.inkMuted,
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: listed.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (context, index) {
+                                  final c = listed[index];
+                                  final dueEntry = dueById[c.id];
+                                  final caption = dueEntry == null
+                                      ? null
+                                      : formatLastSeenCaption(
+                                          dueEntry.lastSeen,
+                                          now,
+                                        );
+                                  return _ClientRow(
+                                    client: c,
+                                    dueCaption: caption,
+                                    selecting: _selecting,
+                                    selected: _selected.contains(c.id),
+                                    onTap: () => _selecting
+                                        ? _toggleSelected(c.id)
+                                        : _openProfile(c.id),
+                                    onLongPress: () => _selecting
+                                        ? _toggleSelected(c.id)
+                                        : _enterSelect(c.id),
                                   );
-                            return _ClientRow(
-                              client: c,
-                              dueCaption: caption,
-                              selecting: _selecting,
-                              selected: _selected.contains(c.id),
-                              onTap: () => _selecting
-                                  ? _toggleSelected(c.id)
-                                  : _openProfile(c.id),
-                              onLongPress: () => _selecting
-                                  ? _toggleSelected(c.id)
-                                  : _enterSelect(c.id),
-                            );
-                          },
-                        ),
+                                },
+                              ),
                       )
                     else
                       Expanded(
-                        child: _AlphaClientList(
-                          clients: listed,
-                          selecting: _selecting,
-                          selected: _selected,
-                          onOpen: _openProfile,
-                          onEnterSelect: _enterSelect,
-                          onToggle: _toggleSelected,
+                        child: StreamBuilder<List<int>>(
+                          stream: db.watchRecentClientIds(),
+                          builder: (context, recentSnap) {
+                            return StreamBuilder<List<int>>(
+                              stream: db.watchPinnedClientIds(),
+                              builder: (context, pinSnap) {
+                                final recentIds =
+                                    (recentSnap.data ?? const []).toSet();
+                                final pinnedIds =
+                                    (pinSnap.data ?? const []).toSet();
+                                // Keep DB A–Z order for letter groups.
+                                final recent = showStrips
+                                    ? [
+                                        for (final c in clients)
+                                          if (recentIds.contains(c.id)) c,
+                                      ]
+                                    : const <Client>[];
+                                final pinned = showStrips
+                                    ? [
+                                        for (final c in clients)
+                                          if (pinnedIds.contains(c.id)) c,
+                                      ]
+                                    : const <Client>[];
+                                return _AlphaClientList(
+                                  recent: recent,
+                                  pinned: pinned,
+                                  clients: listed,
+                                  selecting: _selecting,
+                                  selected: _selected,
+                                  onOpen: _openProfile,
+                                  onEnterSelect: _enterSelect,
+                                  onToggle: _toggleSelected,
+                                  emptyLabel: searching
+                                      ? 'No matches.'
+                                      : null,
+                                );
+                              },
+                            );
+                          },
                         ),
                       ),
                   ],
@@ -409,58 +401,138 @@ class _ClientsScreenState extends State<ClientsScreen> {
 
 class _AlphaClientList extends StatelessWidget {
   const _AlphaClientList({
+    required this.recent,
+    required this.pinned,
     required this.clients,
     required this.selecting,
     required this.selected,
     required this.onOpen,
     required this.onEnterSelect,
     required this.onToggle,
+    this.emptyLabel,
   });
 
+  final List<Client> recent;
+  final List<Client> pinned;
   final List<Client> clients;
   final bool selecting;
   final Set<int> selected;
   final ValueChanged<int> onOpen;
   final ValueChanged<int> onEnterSelect;
   final ValueChanged<int> onToggle;
+  final String? emptyLabel;
+
+  List<Widget> _letterSlivers(List<Client> section) {
+    final groups = groupClientsByLetter(section);
+    return [
+      for (final g in groups) ...[
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: _LetterHeaderDelegate(g.letter),
+        ),
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final c = g.clients[index];
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (index > 0) const Divider(height: 1),
+                  _ClientRow(
+                    client: c,
+                    selecting: selecting,
+                    selected: selected.contains(c.id),
+                    onTap: () => selecting
+                        ? onToggle(c.id)
+                        : onOpen(c.id),
+                    onLongPress: () => selecting
+                        ? onToggle(c.id)
+                        : onEnterSelect(c.id),
+                  ),
+                ],
+              );
+            },
+            childCount: g.clients.length,
+          ),
+        ),
+      ],
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
-    final groups = groupClientsByLetter(clients);
+    final hasStrips = recent.isNotEmpty || pinned.isNotEmpty;
     return CustomScrollView(
       slivers: [
-        for (final g in groups) ...[
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _LetterHeaderDelegate(g.letter),
+        if (recent.isNotEmpty) ...[
+          const SliverToBoxAdapter(
+            child: _SectionCaption(caption: 'RECENT'),
           ),
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final c = g.clients[index];
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (index > 0) const Divider(height: 1),
-                    _ClientRow(
-                      client: c,
-                      selecting: selecting,
-                      selected: selected.contains(c.id),
-                      onTap: () => selecting
-                          ? onToggle(c.id)
-                          : onOpen(c.id),
-                      onLongPress: () => selecting
-                          ? onToggle(c.id)
-                          : onEnterSelect(c.id),
-                    ),
-                  ],
-                );
-              },
-              childCount: g.clients.length,
+          ..._letterSlivers(recent),
+        ],
+        if (pinned.isNotEmpty) ...[
+          const SliverToBoxAdapter(
+            child: _SectionCaption(
+              caption: 'PINNED',
+              captionIcon: Icons.push_pin,
             ),
           ),
+          ..._letterSlivers(pinned),
         ],
+        if (hasStrips && clients.isNotEmpty)
+          const SliverToBoxAdapter(
+            child: Divider(height: 1, color: PelviColors.chromeBorder),
+          ),
+        if (clients.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Text(
+                emptyLabel ?? 'No matches.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: PelviColors.inkMuted,
+                    ),
+              ),
+            ),
+          )
+        else
+          ..._letterSlivers(clients),
       ],
+    );
+  }
+}
+
+class _SectionCaption extends StatelessWidget {
+  const _SectionCaption({
+    required this.caption,
+    this.captionIcon,
+  });
+
+  final String caption;
+  final IconData? captionIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        PelviSpace.md,
+        PelviSpace.sm,
+        PelviSpace.md,
+        PelviSpace.sm,
+      ),
+      child: Row(
+        children: [
+          if (captionIcon != null) ...[
+            Icon(
+              captionIcon,
+              size: 14,
+              color: PelviColors.purple700,
+            ),
+            const SizedBox(width: PelviSpace.xs),
+          ],
+          Text(caption, style: Theme.of(context).textTheme.labelMedium),
+        ],
+      ),
     );
   }
 }
@@ -539,99 +611,6 @@ class _FilterChip extends StatelessWidget {
               color: selected ? PelviColors.pink700 : PelviColors.ink,
             ),
       ),
-    );
-  }
-}
-
-class _ChipStrip extends StatelessWidget {
-  const _ChipStrip({
-    required this.caption,
-    required this.clients,
-    required this.onTap,
-    this.captionIcon,
-  });
-
-  final String caption;
-  final IconData? captionIcon;
-  final List<Client> clients;
-  final ValueChanged<int> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            PelviSpace.md,
-            PelviSpace.sm,
-            PelviSpace.md,
-            PelviSpace.sm,
-          ),
-          child: Row(
-            children: [
-              if (captionIcon != null) ...[
-                Icon(
-                  captionIcon,
-                  size: 14,
-                  color: PelviColors.purple700,
-                ),
-                const SizedBox(width: PelviSpace.xs),
-              ],
-              Text(caption, style: text.labelMedium),
-            ],
-          ),
-        ),
-        // Two chip rows (36) + gap; ClipRect hides anything that would need a 3rd.
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: PelviSpace.md),
-          child: ClipRect(
-            child: SizedBox(
-              height: 36 * 2 + PelviSpace.sm,
-              width: double.infinity,
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: Wrap(
-                  spacing: PelviSpace.sm,
-                  runSpacing: PelviSpace.sm,
-                  children: [
-                    for (final c in clients)
-                      OutlinedButton(
-                        onPressed: () => onTap(c.id),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: PelviColors.ink,
-                          side: BorderSide(
-                            color: captionIcon != null
-                                ? PelviColors.purple400
-                                : PelviColors.border,
-                          ),
-                          backgroundColor: captionIcon != null
-                              ? PelviColors.purple50
-                              : PelviColors.surface,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: PelviSpace.md,
-                          ),
-                          minimumSize: const Size(0, 36),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(PelviRadius.md),
-                          ),
-                        ),
-                        child: Text(
-                          clientDisplayName(c),
-                          style: text.labelLarge,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: PelviSpace.md),
-      ],
     );
   }
 }
