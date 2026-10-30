@@ -735,7 +735,7 @@ void main() {
     expect(await db.select(db.appointments).get(), isEmpty);
   });
 
-  testWidgets('Clients tab search, recent, pin A–Z letter headers', (tester) async {
+  testWidgets('Clients tab search, recent, pin strip, letter headers', (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
 
@@ -763,10 +763,11 @@ void main() {
     expect(find.textContaining('Due'), findsOneWidget);
     expect(find.text('RECENT'), findsOneWidget);
     expect(find.text('PINNED'), findsOneWidget);
-    // H once (main only); L in Recent + Pinned + main.
+    // Sticky letters only on the main All list (chips have no letter headers).
     expect(find.text('H'), findsOneWidget);
-    expect(find.text('L'), findsNWidgets(3));
-    expect(find.text('Ada Lovelace'), findsWidgets);
+    expect(find.text('L'), findsOneWidget);
+    // Chip + main list both show Ada; not three full A–Z copies.
+    expect(find.text('Ada Lovelace'), findsNWidgets(3));
 
     await tester.enterText(find.byType(TextField), 'hopper');
     await tester.pump();
